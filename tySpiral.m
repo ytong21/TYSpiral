@@ -10,7 +10,7 @@ Loc = singleTxObj.getLoc('delete');
 %fov = [25.6 25.6];
 [dimb1(1),dimb1(2), ~] = size(WTCmask);
 [DimX, DimY, NumSlices] = size(B0);clc
-positions = singleTxObj.getPositions('cm','delete');
+Positions = singleTxObj.getPositions('cm','delete');
 WTCmask = singleTxObj.getMask;
 Ns = size(B1,1);
 fov = 25.6; %fov is hard coded at this momemnt. In cm.
@@ -28,6 +28,14 @@ fov = 25.6; %fov is hard coded at this momemnt. In cm.
   [xi,yi] = ndgrid(-dim(1)/2:dim(1)/2-1,-dim(2)/2:dim(2)/2-1);
   xmi = round(mean(xi(logical(mask(:)))));
   ymi = round(mean(yi(logical(mask(:)))));
-  d = circshift(d,[xmi ymi]);
-  d = ift2((hamming(dim(1))*hamming(dim(2))').^2.*ft2(d));
+  d = circshift(d,[xmi ymi]); %Center the excitation pattern
+  d = ift2((hamming(dim(1))*hamming(dim(2))').^2.*ft2(d));%Smooth it a bit.
+  
+%% Build RF waveform roughness penalty matrix 
+R = sqrt(roughbeta)*spdiags([-ones(Nt,1) ones(Nt,1)],[0 1],Nt,Nt) + ...
+    sqrt(roughbeta)*speye(Nt);
+Rfull = kron(speye(Nc),R);
+
+%% Solve for rf with system matrix
+DA = SysMtx(k,mask,Nc,b1,dt,tb0,b0,Positions);
   
