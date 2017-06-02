@@ -9,7 +9,7 @@ GAMMA = 42.577E6; % in Hz/T
 
 m0 = 1;
 AA = zeros(Ns, Nt);
-Positions(3,:,:) = [];
+Positions(:,3) = [];
 
 for ii = 1:Ns
     for jj = 1:Nt
