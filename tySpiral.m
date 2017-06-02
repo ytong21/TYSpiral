@@ -1,5 +1,6 @@
 %addpath(genpath('/Users/ytong/Documents/MATLAB/WTCpTx'));
 singleTxPath = '/Users/ytong/Documents/MATLAB/20170516_F7T_2017_PH_038';
+addpath ../spiral/util
 %singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
     singleTxObj = DicomFM.WTCSingleTxFieldmaps(singleTxPath);
     singleTxObj.interpolateTo('B1');
@@ -10,10 +11,16 @@ singleTxPath = '/Users/ytong/Documents/MATLAB/20170516_F7T_2017_PH_038';
     B0 = singleTxObj.getB1('Hz','delete',slice);
     Positions = singleTxObj.getPositions('cm','delete',slice);
     Ns = size(B1,1);
-    %fov = 25.6; %fov is hard coded at this momemnt. In cm.
+    fov = 25.6; %fov is hard coded at this momemnt. In cm.
 %%
 %Get k-space trajectory
   traj = 'spiral';
+  deltax = fov/50; % spatial resolution of trajectory
+  FOVsubsamp = 7; % cm, xfov of spiral
+  forwardspiral = 0;
+  dorevspiralramp = 0;
+  gmax = 4; % g/cm,
+  dgdtmax = 8000; % 
   get_traj;
   k = k(NN(2)+1:end,:);
   Nt = size(k,1);
@@ -22,6 +29,7 @@ singleTxPath = '/Users/ytong/Documents/MATLAB/20170516_F7T_2017_PH_038';
 %Load excitation pattern and center it around the mask
   load pattern_rect.mat
   dim = size(d);
+  
   [xi,yi] = ndgrid(-dim(1)/2:dim(1)/2-1,-dim(2)/2:dim(2)/2-1);
   xmi = round(mean(xi(logical(mask(:)))));
   ymi = round(mean(yi(logical(mask(:)))));
