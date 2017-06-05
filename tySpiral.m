@@ -4,7 +4,7 @@ addpath ../spiral/util
 %singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
     singleTxObj = DicomFM.WTCSingleTxFieldmaps(singleTxPath);
     singleTxObj.interpolateTo('B1');
-    singleTxObj.createMask(30,false);
+    singleTxObj.createMask(true);
     slice = round(size(singleTxObj.getMask([]),3))/2;
     mask = singleTxObj.getMask(slice);
     b1 = singleTxObj.getB1('Gauss','delete',slice);
