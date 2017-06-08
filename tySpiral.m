@@ -12,10 +12,14 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
     b1 = singleTxObj.getB1('Gauss','delete');
     b0 = singleTxObj.getB1('Hz','delete');
     Positions = singleTxObj.getPositions('cm','delete'); %3 by Ns matrix
+    Positions = Positions';
     Ns = size(b1,1);
-    fov = 25.6; %fov is hard coded at this momemnt. In cm.
+   
 %%
 %Get k-space trajectory
+  fov = 25.6; %fov is hard coded at this momemnt. In cm.
+  flipAngle = 30;
+  mls = 0;            % switch to use magnitude least-squares
   Nc = 1;
   roughbeta = 10^2.25; % nyu, xfov = 8
   traj = 'spiral';
@@ -30,7 +34,7 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
   Nt = size(k,1);
   dt = 10e-6;
   tb0 = (0:Nt-1)*dt;
-%Load excitation pattern and center it around the mask
+%% Load excitation pattern and center it around the mask
   load pattern_rect.mat
   dim = size(d);
   
