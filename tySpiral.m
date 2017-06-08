@@ -12,7 +12,7 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
     b1 = singleTxObj.getB1('Gauss','delete');
     b0 = singleTxObj.getB1('Hz','delete');
     Positions = singleTxObj.getPositions('cm','delete'); %3 by Ns matrix
-    Positions = Positions';
+    Positions = Positions';%SysMtxSingle takes Ns by 3 matrix.
     Ns = size(b1,1);
    
 %%
@@ -29,11 +29,17 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
   dorevspiralramp = 0;
   gmax = 4; % g/cm,
   dgdtmax = 8000; % 
+  %%
+
+  dt = 10e-6;
   get_traj;
   k = k(NN(2)+1:end,:);
   Nt = size(k,1);
-  dt = 10e-6;
   tb0 = (0:Nt-1)*dt;
+  %figure(100)
+  %clf
+%   hold on
+%   plot(k(:,1),k(:,2),'r')
 %% Load excitation pattern and center it around the mask
   load pattern_rect.mat
   dim = size(d);
@@ -56,7 +62,7 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
     rf = qpwls_pcg(zeros(size(k,1)*Nc,1),DA,1,d(mask),0,Rfull,1,ncgiters,mask); % CG
     toc
     rf = reshape(rf(:,end),[length(k) Nc]); % qpwls_pcg returns all iterates
-    plot(abs(rf));
+    %plot(abs(rf));
     
   %%
   m = zeros(dim);m(mask) = DA*rf(:);
@@ -66,7 +72,7 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
   fprintf('All-channels NRMSE: %0.2f%%. All-channels roughness: %f.\n',err*100,roughness);
   %%plotting
   maxamp = max(abs([d(:);m(:)]));
-  figure
+  figure(2)
   subplot(221)
   imagesc(abs(d),[0 maxamp]);axis image;colorbar
   title 'Desired pattern'
@@ -76,4 +82,10 @@ singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
   subplot(224)
   imagesc(abs(m-d));axis image;colorbar
   title(sprintf('Error\nNRMSE = %0.2f%%',err*100));
+  
+%   %%
+%   figure(5)
+%   subplot(224)
+%   imagesc(abs(m),[0 maxamp]);axis image;colorbar
+%   title(sprintf('dt = %0.1f us\nNRMSE = %0.2f%%',dt*1e6,err*100));
   
