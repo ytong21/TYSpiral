@@ -1,15 +1,17 @@
 %addpath(genpath('/Users/ytong/Documents/MATLAB/WTCpTx'));
-singleTxPath = '/Users/ytong/Documents/MATLAB/20170516_F7T_2017_PH_038';
+
+%singleTxPath = '/Users/ytong/Documents/MATLAB/20170516_F7T_2017_PH_038';
 addpath ../spiral/util
-%singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
+singleTxPath = '/Volumes/Data/DICOM/2017-05/20170516_F7T_2017_PH_038';
     singleTxObj = DicomFM.WTCSingleTxFieldmaps(singleTxPath);
     singleTxObj.interpolateTo('B1');
-    singleTxObj.createMask(true);
-    slice = round(size(singleTxObj.getMask([]),3))/2;
-    mask = singleTxObj.getMask(slice);
-    b1 = singleTxObj.getB1('Gauss','delete',slice);
-    b0 = singleTxObj.getB1('Hz','delete',slice);
-    Positions = singleTxObj.getPositions('cm','delete',slice);
+    singleTxObj.createMask(@DicomFM.maskFunctions.multithreshMask,false);
+    slice = round(size(singleTxObj.getMask,3))/2;
+    singleTxObj.setSlice(slice);
+    mask = singleTxObj.getMask;
+    b1 = singleTxObj.getB1('Gauss','delete');
+    b0 = singleTxObj.getB1('Hz','delete');
+    Positions = singleTxObj.getPositions('cm','delete'); %3 by Ns matrix
     Ns = size(b1,1);
     fov = 25.6; %fov is hard coded at this momemnt. In cm.
 %%
