@@ -1,4 +1,4 @@
-function MakeDotH(rf,g)
+function MakeDotH(rf,g,dt)
 rf_max = max(abs(rf(:)));
 rf_normalized = rf/rf_max;
 g01_max = max(abs(g(:,1)));
@@ -13,7 +13,7 @@ for ii = 1:length(rf_phase)
 end
 
 % Declaring amp, phase and max amp. 
-str_header = '7t_spiral.h';
+str_header = 'SingleSpiral.h';
 
 str_grad_x = sprintf('%.5f, ', g01_norm);
 str_grad_x = strcat('const float grissom_grad01_norm [] = { ', str_grad_x, ' };');
@@ -38,8 +38,8 @@ str_rf_AmpInt = sprintf('const float grissom_rf_ampint = %s;', num2str(sum(abs(r
 str_rf_duration = sprintf('const long grissom_rf_duration = %d;',round(dt*1e6*length(rf)));
 
 
-str_grad01_amp = sprintf('const float grissom_grad01_amp = %s;', num2str(10*g01_max));
-str_grad02_amp = sprintf('const float grissom_grad02_amp = %s;', num2str(10*g02_max));
+str_grad01_amp = sprintf('const float grissom_grad01_amp = %s;', num2str(g01_max));
+str_grad02_amp = sprintf('const float grissom_grad02_amp = %s;', num2str(g02_max));
 
 % Write arrays into C++ header files.
 FID = fopen(strcat('/Users/ytong/Documents/XP/',str_header), 'w+');
