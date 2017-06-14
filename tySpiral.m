@@ -49,7 +49,7 @@ roughbeta = 10^2.25;
 DA = genAMatFull(tp,rfOn,gr,sens,df,dp);
 
 lenghtRampUp = numel(g) - size(gr,1);
-RampUp = [real(g(1:lenghtRampUp)) imag(g(1:lenghtRampUp))];
+RampUp = 42.57E6*[real(g(1:lenghtRampUp)) imag(g(1:lenghtRampUp))];% Hz/T
 gOut = [RampUp;grad];%Adding gradient ramp.
 gOut = gOut/425.8; %from Hz/cm to mT/m
 %% Load excitation pattern and center it around the mask

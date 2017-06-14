@@ -32,7 +32,7 @@ str_rf_mag = sprintf('%.5f, ', abs(rf_normalized));
 str_rf_mag = strcat('const float grissom_rf_norm [] = { ', str_rf_mag, ' };');
 str_rf_phase = sprintf('%.5f, ', rf_phase);
 str_rf_phase = strcat('const float grissom_rf_phase [] = { ', str_rf_phase, ' };');
-str_rf_max = sprintf('const float grissom_rf_amp = %f;', rf_max);
+%str_rf_max = sprintf('const float grissom_rf_amp = %f;', rf_max);
 str_rf_pts = sprintf('const long grissom_rf_pts = %d;',length(rf));
 str_rf_AmpInt = sprintf('const float grissom_rf_ampint = %s;', num2str(sum(abs(rf_normalized))));
 str_rf_duration = sprintf('const long grissom_rf_duration = %d;',round(dt*1e6*length(rf)));
