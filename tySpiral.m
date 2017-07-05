@@ -30,7 +30,7 @@
   
   ImageRes = 0.4; % cm
   FDPixSize = 1./(dim*ImageRes); %cm
-  FDRadius = 0; %number of points. 
+  FDRadius = 2; %number of points. 
   figure(11); imagesc([-FDPixSize(1)*dim(1)/2 FDPixSize(1)*dim(1)/2],...
       [-FDPixSize(2)*dim(2)/2 FDPixSize(2)*dim(2)/2],abs(dFreqDomain)); 
   title('2D FFT of the desired pattern'); 
@@ -46,31 +46,40 @@
       PowerPercentage = PartialPower/TotalPwer;
   end
   fprintf('The power percentage with a %.4f cm(-1) by %.4f cm(-1) k-space is %.1f%%.\n', ...
-      FDRadius*(FDPixSize(1)), FDRadius*(FDPixSize(2)),100*PowerPercentage);   
+      FDRadius*(FDPixSize(1)), FDRadius*(FDPixSize(2)),100*PowerPercentage);
+  desiredRadius = max(FDPixSize)*FDRadius;
 %% Get k-space trajectory
-deltax = 22/50; % spatial resolution of trajectory
-% Modified. Originally 15/50.
+deltax = 15/50; % spatial resolution of trajectory % Modified. Originally 15/50.
 FOVsubsamp = 30; % cm, xfov of spiral
 densamp = 75; % duration of full density sampling (# of samples)
 dentrans = 75; % duration of transition from higher to lower
 nl = 1; % degree of undersampling outer part (any real #)
-
 % gmax = 4;  %g/cm
 gmax = 0.0004;  %T/cm ( = 0.4 mT/cm = 40 mT/m)
 % dgdtmax = 18000;      %g/cm/s; max slew rate.
 dgdtmax = 1.8;      %T/cm/s ( = 180 T/m/s) max slew rate. 
-
 dt = 10e-6;     %sec; sampling period in pulse sequence - 4 us
-kdimxy = floor(FOVsubsamp/deltax); %#k-space lines
-
-[g,k,t,s,ddens,NN] = spiralgradlx6(FOVsubsamp,kdimxy,dt,dgdtmax/100,gmax,nl,densamp,dentrans);
-g = flip(g,2);
-g = g';
-grad = [real(g(:)) imag(g(:))];
-grad = grad(NN(2)+1:end,:);
-grad = grad * 42.57E6; % Hz/T
+MaxRadius = 1.87;
+while MaxRadius > desiredRadius
+    deltax = deltax + 1/50;
+    kdimxy = floor(FOVsubsamp/deltax); %#k-space lines
+    [g,k,t,s,ddens,NN] = spiralgradlx6(FOVsubsamp,kdimxy,dt,dgdtmax/100,gmax,nl,densamp,dentrans);
+    g = flip(g,2);
+    g = g';
+    gHzpercm = 42.57E6*[real(g(:)) imag(g(:))];% Hz/T
+    [kTraj,MaxRadius] = tyTraj(gHzpercm,dt);
+end
+grad = gHzpercm(NN(2)+1:end,:);  
 gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2
+gOut = gHzpercm/425.8; %from Hz/cm to mT/m
 
+figure(12)
+plot(kTraj(:,1),kTraj(:,2))
+xlabel('kx 1/cm')
+ylabel('ky 1/cm')
+title('k-space trajectory')
+
+%% Build system matrix
 rfOn = true(size(grad,1),1);
 tp = dt * ones(size(grad,1),1);
 sens = singleTxObj.getB1PerV('Hz','delete');
@@ -79,27 +88,8 @@ dp = singleTxObj.getPositions('cm','delete').';
 Nt = size(gr,1);
 Nc = 1;
 DA = genAMatFull(tp,rfOn,gr,sens,df,dp);
-
-lenghtRampUp = numel(g) - size(gr,1);
-RampUp = 42.57E6*[real(g(1:lenghtRampUp)) imag(g(1:lenghtRampUp))];% Hz/T
-gOut = [RampUp;grad];%Adding gradient ramp.
-gOut = gOut/425.8; %from Hz/cm to mT/m
-gHzpercm = gOut*425.8;
-
-kTraj = zeros(size(gHzpercm));
-kTraj(1,:) = gHzpercm(1,:);
-for ii = 2:size(gHzpercm,1)
-    kTraj(ii,1) = kTraj(ii-1,1) + gHzpercm(ii,1);
-    kTraj(ii,2) = kTraj(ii-1,2) + gHzpercm(ii,2);
-end
-kTraj = kTraj*dt; % to convert to 1/cm;  
-figure(12)
-plot(kTraj(:,1),kTraj(:,2))
-xlabel('kx 1/cm')
-ylabel('ky 1/cm')
-title('k-space trajectory')
-
- %% Build RF waveform roughness penalty matrix 
+ 
+% Build RF waveform roughness penalty matrix 
     roughbeta = 10^2.25;
     R = sqrt(roughbeta)*spdiags([-ones(Nt,1) ones(Nt,1)],[0 1],Nt,Nt) + ...
         sqrt(roughbeta)*speye(Nt);
