@@ -49,30 +49,48 @@
       FDRadius*(FDPixSize(1)), FDRadius*(FDPixSize(2)),100*PowerPercentage);
   desiredRadius = max(FDPixSize)*FDRadius;
 %% Get k-space trajectory
-deltax = 15/50; % spatial resolution of trajectory % Modified. Originally 15/50.
-FOVsubsamp = 30; % cm, xfov of spiral
-densamp = 75; % duration of full density sampling (# of samples)
-dentrans = 75; % duration of transition from higher to lower
-nl = 1; % degree of undersampling outer part (any real #)
-% gmax = 4;  %g/cm
-gmax = 0.0004;  %T/cm ( = 0.4 mT/cm = 40 mT/m)
-% dgdtmax = 18000;      %g/cm/s; max slew rate.
-dgdtmax = 1.8;      %T/cm/s ( = 180 T/m/s) max slew rate. 
-dt = 10e-6;     %sec; sampling period in pulse sequence - 4 us
-MaxRadius = 1.87;
-while MaxRadius > desiredRadius
-    deltax = deltax + 1/50;
-    kdimxy = floor(FOVsubsamp/deltax); %#k-space lines
-    [g,k,t,s,ddens,NN] = spiralgradlx6(FOVsubsamp,kdimxy,dt,dgdtmax/100,gmax,nl,densamp,dentrans);
-    g = flip(g,2);
-    g = g';
-    gHzpercm = 42.57E6*[real(g(:)) imag(g(:))];% Hz/T
-    [kTraj,MaxRadius] = tyTraj(gHzpercm,dt);
+trajDensity = 'variable';
+switch trajDensity
+    case 'uniform'
+        deltax = 15/50; % spatial resolution of trajectory % Modified. Originally 15/50.
+        FOVsubsamp = 30; % cm, xfov of spiral
+        densamp = 75; % duration of full density sampling (# of samples)
+        dentrans = 75; % duration of transition from higher to lower
+        nl = 1; % degree of undersampling outer part (any real #)
+        gmax = 0.0004;  %T/cm ( = 0.4 mT/cm = 40 mT/m) % gmax = 4;  %g/cm
+        % dgdtmax = 18000;      %g/cm/s; max slew rate.
+        dgdtmax = 1.8;      %T/cm/s ( = 180 T/m/s) max slew rate. 
+        dt = 10e-6;     %sec; sampling period in pulse sequence - 4 us
+        MaxRadius = 1.87;
+        while MaxRadius > desiredRadius
+            deltax = deltax + 1/50;
+            kdimxy = floor(FOVsubsamp/deltax); %#k-space lines
+            [g,k,t,s,ddens,NN] = spiralgradlx6(FOVsubsamp,kdimxy,dt,dgdtmax/100,gmax,nl,densamp,dentrans);
+            g = flip(g,2);
+            g = g';
+            gHzpercm = 42.577E6*[real(g(:)) imag(g(:))];% Hz/T
+            [kTraj,MaxRadius] = tyTraj(gHzpercm,dt);
+        end
+        grad = gHzpercm(NN(2)+1:end,:);  
+        gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2
+        gOut = gHzpercm/425.77; %from Hz/cm to mT/m
+    case 'variable'
+        vdMtxSize = 20;
+        vdFOV = 32; 
+        alpha = 4; %oversampling coefficient
+        stVds = genVDSpirals(vdMtxSize, alpha, vdFOV, 1,'flagGrad',1);
+        gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad); real(stVds.Grad)];
+        gHzpercm = gHzpercm';
+        vdRadius = hypot(sum(gHzpercm(:,1)),sum(gHzpercm(:,2)))*dt;
+        while vdRadius < desiredRadius
+            vdFOV = vdFOV - 1;
+            stVds = genVDSpirals(vdMtxSize, alpha, vdFOV, 1,'flagGrad',1);
+            gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad); real(stVds.Grad)];
+            gHzpercm = gHzpercm';
+            vdRadius = hypot(sum(gHzpercm(:,1)),sum(gHzpercm(:,2)))*dt;
+        end
 end
-grad = gHzpercm(NN(2)+1:end,:);  
-gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2
-gOut = gHzpercm/425.8; %from Hz/cm to mT/m
-
+%%
 figure(12)
 plot(kTraj(:,1),kTraj(:,2))
 xlabel('kx 1/cm')
