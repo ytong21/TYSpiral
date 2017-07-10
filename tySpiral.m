@@ -25,7 +25,7 @@
 %     ymi = round(mean(yi(logical(mask(:)))));
 %     d = circshift(d,[xmi ymi]); %Center the excitation pattern
   d = ift2((hamming(dim(1))*hamming(dim(2))').^2.*ft2(d));%Smooth it a bit.
-  d = sind(15)*d;
+  d = sind(90)*d;
   dFreqDomain = fftshift(ifft2(d));
   
   ImageRes = 0.4; % cm
@@ -72,23 +72,35 @@ switch trajDensity
             [kTraj,MaxRadius] = tyTraj(gHzpercm,dt);
         end
         grad = gHzpercm(NN(2)+1:end,:);  
-        gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2
+        gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2 for Bloch simulation
         gOut = gHzpercm/425.77; %from Hz/cm to mT/m
     case 'variable'
         vdMtxSize = 20;
         vdFOV = 32; 
-        alpha = 4; %oversampling coefficient
+        alpha = 3; %oversampling coefficient
         stVds = genVDSpirals(vdMtxSize, alpha, vdFOV, 1,'flagGrad',1);
-        gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad); real(stVds.Grad)];
-        gHzpercm = gHzpercm';
+        gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad') imag(stVds.Grad')]; %Hz/cm
         vdRadius = hypot(sum(gHzpercm(:,1)),sum(gHzpercm(:,2)))*dt;
         while vdRadius < desiredRadius
             vdFOV = vdFOV - 1;
             stVds = genVDSpirals(vdMtxSize, alpha, vdFOV, 1,'flagGrad',1);
-            gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad); real(stVds.Grad)];
-            gHzpercm = gHzpercm';
+            gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad') imag(stVds.Grad')];
             vdRadius = hypot(sum(gHzpercm(:,1)),sum(gHzpercm(:,2)))*dt;
         end
+        %So for the gradient is spiral-out. Adding 2 parts for ramp-down: deceleration & returning to (0,0)
+        decelPoints = 20;
+        decel = [linspace(gHzpercm(end,1),0,decelPoints); linspace(gHzpercm(end,2),0,decelPoints)]';
+        kFinal = (sum(gHzpercm) + sum(decel))*dt; %1/cm
+        rampPoints = 75;
+        % kFinal = 0.5*GrampMaxAmp*kFinalrampPoints*dt;
+        GrampMaxAmp = (-kFinal)./(0.5*rampPoints*dt);
+        rampDown = [linspace(0,GrampMaxAmp(1),(rampPoints+1)/2); linspace(0,GrampMaxAmp(2),(rampPoints+1)/2)]';
+        rampDown = [rampDown; flip(rampDown(1:end-1,:),1)];
+        grad = [gHzpercm; decel; rampDown]; %/Hz/cm
+        grad = flip(grad,1);
+        [kTraj,~] = tyTraj(grad,dt);
+        gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2 for Bloch simulation
+        gOut = grad/425.77; %from Hz/cm to mT/m
 end
 %%
 figure(12)
@@ -113,7 +125,7 @@ DA = genAMatFull(tp,rfOn,gr,sens,df,dp);
         sqrt(roughbeta)*speye(Nt);
     Rfull = kron(speye(Nc),R); 
   % Create pulse
-tikhonov = 1e-5;
+tikhonov = 1e-7;
 [RFOut,finalCost,finalPwr,finalMag] = CG_SysMat(DA,d(mask(:)),tikhonov,mask);
 fprintf('Max RF = %f\n',max(abs(RFOut)))
   % Plotting
