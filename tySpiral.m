@@ -1,7 +1,7 @@
 %addpath(genpath('/Users/ytong/Documents/MATLAB/WTCpTx'));
 
 %singleTxPath = '/Users/ytong/Documents/MATLAB/20170516_F7T_2017_PH_054';
-    singleTxPath = '/Volumes/Data/DICOM/2017-07/20170704_F7T_2017_PH_069';
+    singleTxPath = '/Volumes/Data/DICOM/2017-07/20170711_F7T_2017_PH_075';
     singleTxObj = DicomFM.WTCSingleTxFieldmaps(singleTxPath);
     singleTxObj.interpolateTo('B1');
     slice = round(size(singleTxObj.getMask,3)/2);
@@ -37,7 +37,7 @@
   xlabel('kx 1/cm'); ylabel('ky 1/cm');
   TotalPwer = sum(abs(dFreqDomain(:)));
   PowerPercentage = 0;
-  PowerThreshold = 0.9;
+  PowerThreshold = 0.8;
   while PowerPercentage < PowerThreshold && FDRadius <= floor(min(dim)/2)
       FDRadius = FDRadius + 1;
       PartialKSpace = dFreqDomain((dim(1)/2-(FDRadius-1)):(dim(1)/2+FDRadius), ...
@@ -49,6 +49,7 @@
       FDRadius*(FDPixSize(1)), FDRadius*(FDPixSize(2)),100*PowerPercentage);
   desiredRadius = max(FDPixSize)*FDRadius;
 %% Get k-space trajectory
+dt = 10e-6;     %sec; sampling period in pulse sequence - 4 us
 trajDensity = 'variable';
 switch trajDensity
     case 'uniform'
@@ -60,7 +61,6 @@ switch trajDensity
         gmax = 0.0004;  %T/cm ( = 0.4 mT/cm = 40 mT/m) % gmax = 4;  %g/cm
         % dgdtmax = 18000;      %g/cm/s; max slew rate.
         dgdtmax = 1.8;      %T/cm/s ( = 180 T/m/s) max slew rate. 
-        dt = 10e-6;     %sec; sampling period in pulse sequence - 4 us
         MaxRadius = 1.87;
         while MaxRadius > desiredRadius
             deltax = deltax + 1/50;
@@ -75,9 +75,9 @@ switch trajDensity
         gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2 for Bloch simulation
         gOut = gHzpercm/425.77; %from Hz/cm to mT/m
     case 'variable'
-        vdMtxSize = 20;
+        vdMtxSize = 16;
         vdFOV = 32; 
-        alpha = 3; %oversampling coefficient
+        alpha = 2; %oversampling coefficient
         stVds = genVDSpirals(vdMtxSize, alpha, vdFOV, 1,'flagGrad',1);
         gHzpercm = 42.577E6*(1E-4)*[real(stVds.Grad') imag(stVds.Grad')]; %Hz/cm
         vdRadius = hypot(sum(gHzpercm(:,1)),sum(gHzpercm(:,2)))*dt;
@@ -88,19 +88,20 @@ switch trajDensity
             vdRadius = hypot(sum(gHzpercm(:,1)),sum(gHzpercm(:,2)))*dt;
         end
         %So for the gradient is spiral-out. Adding 2 parts for ramp-down: deceleration & returning to (0,0)
-        decelPoints = 20;
+        decelPoints = 16;
         decel = [linspace(gHzpercm(end,1),0,decelPoints); linspace(gHzpercm(end,2),0,decelPoints)]';
         kFinal = (sum(gHzpercm) + sum(decel))*dt; %1/cm
-        rampPoints = 75;
+        rampPoints = 50; %make it an even number.
         % kFinal = 0.5*GrampMaxAmp*kFinalrampPoints*dt;
-        GrampMaxAmp = (-kFinal)./(0.5*rampPoints*dt);
-        rampDown = [linspace(0,GrampMaxAmp(1),(rampPoints+1)/2); linspace(0,GrampMaxAmp(2),(rampPoints+1)/2)]';
-        rampDown = [rampDown; flip(rampDown(1:end-1,:),1)];
-        grad = [gHzpercm; decel; rampDown]; %/Hz/cm
-        grad = flip(grad,1);
-        [kTraj,~] = tyTraj(grad,dt);
+        GrampMaxAmp = (-kFinal)./(0.5*rampPoints*dt); 
+        rampDown = [linspace(0,GrampMaxAmp(1),(rampPoints)/2); linspace(0,GrampMaxAmp(2),(rampPoints)/2)]';
+        rampDown = [rampDown; flip(rampDown,1)];
+        gTotal = [gHzpercm; decel; rampDown]; %/Hz/cm
+        gTotal = flip(gTotal,1);
+        [kTraj,~] = tyTraj(gTotal,dt);
+        grad = flip(gHzpercm,1);
         gr = [grad zeros(size(grad,1),1)];%3 gradients instead of 2 for Bloch simulation
-        gOut = grad/425.77; %from Hz/cm to mT/m
+        gOut = gTotal/425.77; %from Hz/cm to mT/m
 end
 %%
 figure(12)
