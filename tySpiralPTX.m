@@ -14,7 +14,7 @@
     Positions = pTxObj.getPositions('cm','delete'); %3 by Ns matrix
     Positions = Positions';%SysMtxSingle takes Ns by 3 matrix.
     Ns = size(b1,1);
-    FlipAngle = 90;
+    FlipAngle = 15;
 %% Create the excitation pattern
 ExPattern = 'phase';
 switch ExPattern
@@ -140,7 +140,7 @@ DA = genAMatFull(tp,rfOn,gr,sens,df,dp);
         sqrt(roughbeta)*speye(Nt);
     Rfull = kron(speye(Nc),R); 
   % Create pulse
-tikhonov = 1e-7;
+tikhonov = 1e-9;
 [RFOut,finalCost,finalPwr,finalMag] = CG_SysMat(DA,d(mask(:)),tikhonov,mask);
 fprintf('Max RF = %f\n',max(abs(RFOut(:))))
 RFPerChan = reshape(RFOut,[numel(RFOut)/Nc Nc]);
@@ -152,7 +152,7 @@ magnetization = make_blochSim(RFPerChan,b1,b0,gOut*425.8,dt,Positions,mask);
   m = zeros(dim);m(mask) = DA*RFOut(:);
   err = norm(m-d)/norm(d);
   MagErr = norm((abs(m)-abs(d)))/norm(abs(d));
-  PhaseErr = norm((angle(m)-angle(d)))/norm(angle(d));
+  PhaseErr = norm(magnetization.phase-angle(d))/norm(angle(d));
   roughness = norm(Rfull*RFOut(:));
   pow = sqrt(mean(abs(RFOut(:)).^2));
   fprintf('All-channels NRMSE: %0.2f%%. All-channels roughness: %f.\n',MagErr*100,roughness);
@@ -175,17 +175,19 @@ magnetization = make_blochSim(RFPerChan,b1,b0,gOut*425.8,dt,Positions,mask);
   imagesc(imrotate(flip(abs(magnetization.mxy),1),-90),[0 maxamp]);axis image;colorbar
   title(sprintf('Bloch Simulation Magnitude'));
   subplot(323)
-  imagesc(imrotate(flip(angle(d),1),-90),[-pi pi]);axis image;colorbar
+  imagesc(imrotate(flip(rad2deg(angle(d)),1),-90),[-180 180]);axis image;colorbar
   title 'Desired phase'
   subplot(324)
-  imagesc(imrotate(flip(angle(magnetization.mxy),1),-90),[-pi pi]);axis image;colorbar
+  imagesc(imrotate(flip(rad2deg(magnetization.phase),1),-90),[-180 180]);
+  axis image;colorbar
   title(sprintf('Bloch Simulation Phase'));  
   subplot(325)
   imagesc(imrotate(flip(abs(magnetization.mxy)-abs(d),1),-90),[0 maxamp]);axis image;colorbar
   title(sprintf('Magnitude Error\nNRMSE = %0.2f%%',MagErr*100));
   fprintf('The slice position is %.4f mm.\n',10*Positions(1,3));%Positions in cm.
   subplot(326)
-  imagesc(imrotate(flip(angle(magnetization.mxy)-angle(d),1),-90),[-pi pi]);axis image;colorbar
+  imagesc(imrotate(flip(rad2deg(magnetization.phase-angle(d)),1),-90),[-180 180]);
+  axis image;colorbar
   title(sprintf('Phase Error\nNRMSE = %0.2f%%',PhaseErr*100));
   
   
