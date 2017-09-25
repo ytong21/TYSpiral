@@ -1,7 +1,6 @@
 
-
-    kXAdj = linspace(-3,3,11);
-    kYAdj = linspace(-3,3,11);
+    kXAdj = linspace(-3,3,MtxSize);
+    kYAdj = linspace(-3,3,MtxSize);
     kX = kXAdj*(2*pi)/FOX;
     kY = kYAdj*(2*pi)/FOX;
     KVec = zeros(2,numel(kX)*numel(kY));
@@ -22,12 +21,7 @@ kOut = kOut*FOX/(2*pi);
 kOut = kOut';
 %%        
 figure(102)
-clf
-imagesc(deltaXAdj,deltaYAdj,StructToSave.NRMSE)
-colorbar
-
-hold on
-plot(KVec(1,:)*FOX/(2*pi),KVec(2,:)*FOX/(2*pi),'.k', 'MarkerSize', 18);
-hold on
-plot(kOut(1,:),kOut(2,:),'+r', 'MarkerSize', 10);
+clf;imagesc(deltaXAdj,deltaYAdj,StructToSave.NRMSE);colorbar
+hold on; plot(KVec(1,:)*FOX/(2*pi),KVec(2,:)*FOX/(2*pi),'.k', 'MarkerSize', 18);
+hold on; plot(kOut(1,:),kOut(2,:),'+r', 'MarkerSize', 10);
 
