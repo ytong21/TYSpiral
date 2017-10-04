@@ -14,3 +14,4 @@ switch OptimType
         bOut = complex(OutReal(1:2*param.numCh),OutReal(1+2*param.numCh:4*param.numCh));
         kOut = OutReal(4*param.numCh+1:end);
 end
+end

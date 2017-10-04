@@ -22,11 +22,12 @@ for xDx = 1:numel(kX)
     end
 end    
 %%
+OptimType = 'Kb';
 parfor iDx = 1:size(KVec,2)
     [bOut(iDx,:),~,kOut(iDx,:)] = VE_AS(OptimType,KVec(:,iDx),SINC,maskedMaps,param);
 end
 kOutAdj = kOut*FOX/(2*pi);
 kOutAdj = kOutAdj';
 
-Cart = struct('bOut',bOut,'kIn',KVec,'kOut',kOutAdj);
-
+Cart = struct('bOut',bOut,'kIn',KVec*FOX/(2*pi),'kOut',kOutAdj);
+end

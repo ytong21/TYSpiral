@@ -1,9 +1,10 @@
     %%    
    
-    pTxPath = '/Users/ytong/Documents/MATLAB/Temp/20170509_F7T_2013_40_346';
+    pTxPath = 'afp://dyn64.fmrib.ox.ac.uk:PTxInVivoMaps/20170323_TOFirstScanpTx';
     ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath,'B1String','dt_dream_wIce_60deg_80VRef__B1','B0String','fieldmap_ptx7t_iso4mm_trans_RL');
     ptxFMObj.interpolateTo('B1');
     ptxFMObj.createMask(@DicomFM.maskFunctions.multithreshMask,true);
+    
     ptxFMObj.setSlice(16);
     %%
     param.targetFlipAngle = 15;
@@ -11,7 +12,7 @@
     param.TR = 5e-3;% sec
     param.CGtikhonov = 1e-6;
     param.tol = 1e-2;
-    param.MaxEvaluation = 3000;
+    param.MaxEvaluation = 2000;
     param.FOX = 25;%25cm
 
     maskedMaps.b1SensMasked = ptxFMObj.getB1PerV('uT','delete');
@@ -21,6 +22,40 @@
     %maskedMaps.targetAngle = ones(size(maskedMaps.b0MapMasked))*deg2rad(options.targetFlipAngle);
     SINC = tyMakeSinc(1000,6,5); %Duration = 1000us; number of zero crossings = 6; SliceThickness = 5 %mm
 
+    %%
+    tic
+     Landscape = landscape_run(0.05,param,maskedMaps,SINC);
+    toc
+    
+    %%
+    
+    tic;Cart11 = cartesian_run(11,param,maskedMaps,SINC);toc
+    tic;Cart5 = cartesian_run(5,param,maskedMaps,SINC);toc
+    %%
+    figure(102)
+    clf;imagesc(-3:0.05:3,-3:0.05:3,Landscape.NRMSE);colorbar
+    hold on; plot(Cart11.kIn(1,:),Cart11.kIn(2,:),'.k', 'MarkerSize', 18);
+    hold on; plot(Cart11.kOut(1,:),Cart11.kOut(2,:),'+r', 'MarkerSize', 10);
+    title('11 by 11 Cartesian Grid Optimization')
+    
+    figure(103)
+    clf;imagesc(-3:0.05:3,-3:0.05:3,Landscape.NRMSE);colorbar
+    hold on; plot(Cart5.kIn(1,:),Cart5.kIn(2,:),'.k', 'MarkerSize', 18);
+    hold on; plot(Cart5.kOut(1,:),Cart5.kOut(2,:),'+r', 'MarkerSize', 10);
+    title('5 by 5 Cartesian Grid Optimization')
+    %%
+     Prob = zeros(20,1);
+     global_min = min(Landscape.NRMSE(:));
+     NRMSE_Vec = zeros(1000,30);
+     %%
+     tic
+     for kk = 20
+        
+         NRMSE_Vec(:,kk) = rand_run(1000,kk,param,maskedMaps,SINC);
+         Ref = 1.05*ones(size(NRMSE_Vec))*global_min;
+         Prob(kk) = nnz(Ref>NRMSE_Vec)/numel(Ref);
+     end
+     toc
 %% 
 figure(102)
 clf

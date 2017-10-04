@@ -32,5 +32,11 @@ toc
     Landscape.ComputationTime = toc;
     bOut = reshape(bOut,[numel(deltaX),numel(deltaY),2*param.numCh]);
     NRMSE = reshape(NRMSE,[numel(deltaX),numel(deltaY)]);
+    Power = zeros(size(NRMSE));
+    for ii = 1:size(Power,1)
+        for jj = 1:size(Power,2)
+            Power(ii,jj) = sumsqr(bOut(ii,jj,:));
+        end
+    end
     Landscape.bOut = bOut;   Landscape.NRMSE = NRMSE;
-    
+end    
