@@ -20,12 +20,15 @@ optionsFMin.Display = 'none';
 optionsFMin.MaxFunctionEvaluations = param.MaxEvaluation;
 optionsFMin.SpecifyConstraintGradient = true;
 optionsFMin.OptimalityTolerance = param.tol;
+optionsFMin.FiniteDifferenceType = 'central';
 
+protectedModeConstraints = CoilConstraints.novaCoil( true );
+nonlincon = TYpowerConstraints_AS_GlobalOnly(VecIn,protectedModeConstraints,param.TR,SINC.sinc_pulse);
 switch OptimType 
     case 'Kb'
         FOX = 25; %25cm 
-        ub(param.numCh*4+1:param.numCh*4+2) = [3.5*(2*pi)/FOX 3.5*(2*pi)/FOX];   
-        lb(param.numCh*4+1:param.numCh*4+2) = [-3.5*(2*pi)/FOX -3.5*(2*pi)/FOX];
+        ub(param.numCh*4+1:param.numCh*4+2) = [3*(2*pi)/FOX 3*(2*pi)/FOX];   
+        lb(param.numCh*4+1:param.numCh*4+2) = [-3*(2*pi)/FOX -3*(2*pi)/FOX];
         VecInInitial(param.numCh*4+1:param.numCh*4+2,1) = deltaK;
         FunFinal = getAMatSpokesKb(SINC,maskedMaps,param);
     case 'b'

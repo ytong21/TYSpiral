@@ -1,7 +1,7 @@
 function NRMSE = getAMatSpokesKb(SINC,maskedMaps,param)
 %(Nc*2)*2+2 by 1 Vec
-%First Nc*2 elements =  real parts of complex per channel weights for 2 spokes
-%Second Nc*2 elements = real parts of complex per channel weights for 2 spokes
+%First Nc*2 elements =  abs parts of complex per channel weights for 2 spokes
+%Second Nc*2 elements = angle parts of complex per channel weights for 2 spokes
 %Last two elements = [deltaKx;deltaKy];
 %Duration in seconds
 %sense in uT/Volt
