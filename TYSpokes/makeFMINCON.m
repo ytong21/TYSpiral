@@ -18,12 +18,13 @@ optionsFMin = optimoptions(@fmincon);
 optionsFMin.Algorithm = 'active-set';
 optionsFMin.Display = 'none';
 optionsFMin.MaxFunctionEvaluations = param.MaxEvaluation;
-optionsFMin.SpecifyConstraintGradient = true;
+optionsFMin.SpecifyConstraintGradient = false;
 optionsFMin.OptimalityTolerance = param.tol;
 optionsFMin.FiniteDifferenceType = 'central';
 
 protectedModeConstraints = CoilConstraints.novaCoil( true );
-nonlincon = TYpowerConstraints_AS_GlobalOnly(VecIn,protectedModeConstraints,param.TR,SINC.sinc_pulse);
+nonlincon = @(VecInInitial) TYpowerConstraints_AS_GlobalOnly(VecInInitial,protectedModeConstraints,param.TR,SINC.rfNormalized);
+
 switch OptimType 
     case 'Kb'
         FOX = 25; %25cm 
@@ -35,4 +36,9 @@ switch OptimType
         FunFinal = getAMatSpokesb(SINC,maskedMaps,deltaK,param);
 end
 
-[bOut,fval,exitflag,output] = fmincon(FunFinal,VecInInitial,[],[],[],[],lb.',ub.',[],optionsFMin);
+[bOut,fval,exitflag,output] = fmincon(FunFinal,VecInInitial,[],[],[],[],lb.',ub.',nonlincon,optionsFMin);
+end
+
+% function Out = nonlincon(x)
+%         Out = TYpowerConstraints_AS_GlobalOnly(x,protectedModeConstraints,param.TR,SINC.rfNormalized);
+% end

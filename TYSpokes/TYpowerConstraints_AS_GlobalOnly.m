@@ -1,5 +1,5 @@
-function c = TYpowerConstraints_AS_GlobalOnly(x,currentConstraints,pulseTR,sinc_pulse)
-
+function [c,ceq] = TYpowerConstraints_AS_GlobalOnly(x,currentConstraints,pulseTR,sinc_pulse)
+ceq = [];
 % c<=0
 % ceq=0
 % See https://uk.mathworks.com/help/optim/ug/nonlinear-constraints.html for
@@ -35,6 +35,6 @@ power =@(x) x.^2./impedance;
     cSumPwrPerTR10s = SumPwrPerTR.*VoltsPerSpoke*(10/pulseTR)/10 - currentConstraints.flPTxCoilSumAvPwrLimit_10s; 
     cSumPwrPerTR6min = SumPwrPerTR.*VoltsPerSpoke*(6*60/pulseTR)/(6*60) - currentConstraints.flPTxCoilSumAvPwrLimit_LT; 
  
- c = [cPeakPwrPerChan;cAvgPwrPerChan10s;cAvgPwrPerChan6min;cSumPwrPerTR10s;cSumPwrPerTR6min];
+ c = [cPeakPwrPerChan; cAvgPwrPerChan10s; cAvgPwrPerChan6min; cSumPwrPerTR10s; cSumPwrPerTR6min];
 
 

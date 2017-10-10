@@ -14,7 +14,7 @@
     param.TR = 5e-3;% sec
     param.CGtikhonov = 1e-6;
     param.tol = 1e-5;
-    param.MaxEvaluation = 22000;
+    param.MaxEvaluation = 25000;
     param.FOX = 25;%25cm
 
     maskedMaps.b1SensMasked = ptxFMObj.getB1PerV('uT','delete');
@@ -26,7 +26,7 @@
 
     %%
     tic
-        [Landscape,OutputStruct] = landscape_run(0.03,param,maskedMaps,SINC);
+        [Landscape,OutputStruct] = landscape_run(0.1,param,maskedMaps,SINC);
     toc
     
     %%
@@ -93,7 +93,7 @@ finalFA = AFullSpokes*100*[ones(4,1);zeros(12,1)];
 m(~maskedMaps.mask==0) = finalFA;
 figure(21);imagesc(abs(m)); colorbar
 %%
-b1map = ptxFMObj.getB1PerV('uT','none');
+b1map = ptxFMObj.getB1PerV('uT','NaN');
 b1map = squeeze(sum(b1map,3));
 imagesc(abs(b1map))
 colorbar
