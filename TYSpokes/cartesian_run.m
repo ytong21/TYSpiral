@@ -22,14 +22,15 @@ for xDx = 1:numel(kX)
     end
 end    
 %%
+NRMSE = zeros(size(KVec,2),1);
 OptimType = 'Kb';
 ExitFlag = zeros(size(KVec,2),1);
 OutputStruct = cell(size(ExitFlag));
 parfor iDx = 1:size(KVec,2)
-    [bOut(iDx,:),~,kOut(iDx,:),ExitFlag(iDx),OutputStruct{iDx}] = VE_AS(OptimType,KVec(:,iDx),SINC,maskedMaps,param);
+    [bOut(iDx,:),NRMSE(iDx),kOut(iDx,:),ExitFlag(iDx),OutputStruct{iDx}] = VE_AS(OptimType,KVec(:,iDx),SINC,maskedMaps,param);
 end
 kOutAdj = kOut*FOX/(2*pi);
 kOutAdj = kOutAdj';
 
-Cart = struct('bOut',bOut,'kIn',KVec*FOX/(2*pi),'kOut',kOutAdj,'ExitFlag',ExitFlag);
+Cart = struct('bOut',bOut,'kIn',KVec*FOX/(2*pi),'kOut',kOutAdj,'ExitFlag',ExitFlag,'NRMSE',NRMSE);
 end

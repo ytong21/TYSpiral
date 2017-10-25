@@ -24,4 +24,4 @@ totalDuration = SINC.DurationInSec;
     AFullSpoke2 = bsxfun(@times,ASpoke2,sens);
 % end
 
-AFullSpokes = 1i*SINC.FAr*[AFullSpoke1 AFullSpoke2];
+AFullSpokes = 1i*SINC.FArBloch*[AFullSpoke1 AFullSpoke2];

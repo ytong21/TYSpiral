@@ -5,13 +5,16 @@ function [bOut,NRMSE,kOut,exitflag,output] = VE_AS(OptimType,deltaK,SINC,maskedM
         [bVE,~,~,~] = designSpokes(AFullSpokes,param,maskedMaps);
 switch OptimType
     case 'b'
-        [bOutReal,NRMSE,exitflag,output] = makeFMINCON(OptimType,deltaK,[abs(bVE); angle(bVE)],SINC,maskedMaps,param);
-        bOut = complex(bOutReal(1:2*param.numCh),bOutReal(1+2*param.numCh:4*param.numCh));
+        [OutAll,NRMSE,exitflag,output] = makeFMINCON(OptimType,deltaK,[abs(bVE); angle(bVE)],SINC,maskedMaps,param);
+        %bOut = complex(bOutReal(1:2*param.numCh),bOutReal(1+2*param.numCh:4*param.numCh));
+        bOut = OutAll(1:2*param.numCh).*exp(OutAll(1+2*param.numCh:4*param.numCh));
         kOut = [];
         
     case 'Kb';
-        [OutReal,NRMSE,exitflag,output] = makeFMINCON(OptimType,deltaK,[abs(bVE); angle(bVE);deltaK],SINC,maskedMaps,param);
-        bOut = complex(OutReal(1:2*param.numCh),OutReal(1+2*param.numCh:4*param.numCh));
-        kOut = OutReal(4*param.numCh+1:end);
+        [OutAll,NRMSE,exitflag,output] = makeFMINCON(OptimType,deltaK,[abs(bVE); angle(bVE);deltaK],SINC,maskedMaps,param);
+        %bOut = complex(OutReal(1:2*param.numCh),OutReal(1+2*param.numCh:4*param.numCh));
+        %bOut = OutAll(1:4*param.numCh);
+        bOut = OutAll(1:2*param.numCh).*exp(OutAll(1+2*param.numCh:4*param.numCh));
+        kOut = OutAll(4*param.numCh+1:end);
 end
 end

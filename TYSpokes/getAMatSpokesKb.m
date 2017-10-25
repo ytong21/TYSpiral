@@ -39,7 +39,7 @@ bInComplex = @(VecIn) bInAbs(VecIn).*(cos(bInAngle(VecIn))+1i*sin(bInAngle(VecIn
 PhaseBlip = @(VecIn) exp(1i*(dp(:,1:2)*deltaK(VecIn)));
 ASpoke2 = @(VecIn) PhaseBlip(VecIn).*b0TermSpoke2;
 AFullSpoke2 = @(VecIn) repmat(ASpoke2(VecIn),1,NCha).*sens;
-AFullSpokes = @(VecIn) 1i*SINC.FAr*[AFullSpoke1 AFullSpoke2(VecIn)];
+AFullSpokes = @(VecIn) 1i*SINC.FArBloch*[AFullSpoke1 AFullSpoke2(VecIn)];
 
 FinalFA = @(VecIn) AFullSpokes(VecIn)*bInComplex(VecIn);
 TargetFA = ones(Nv,1)*deg2rad(param.targetFlipAngle);

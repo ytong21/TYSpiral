@@ -37,7 +37,7 @@ for cDx = 1:NCha
     AFullSpoke2(:,cDx) = bsxfun(@times,ASpoke2,sens(:,cDx));
 end
 
-AFullSpokes = 1i*SINC.FAr*[AFullSpoke1 AFullSpoke2];
+AFullSpokes = 1i*SINC.FArBloch*[AFullSpoke1 AFullSpoke2];
 
 FinalFA = @(VecIn) AFullSpokes*bInComplex(VecIn);
 TargetFA = ones(Nv,1)*deg2rad(param.targetFlipAngle);
