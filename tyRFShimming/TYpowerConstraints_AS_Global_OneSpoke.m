@@ -36,11 +36,11 @@ WTCpower =@(x) x.^2./impedance;
     AvgPowerPerTR = PowerIntPerSpoke/pulseTR;
     %VoltsPerSpoke = sum(abs(RF_pulse))*(10e-6);  % s   tyMakeSinc has a 10us raster
     %PowerPerTR = (WTCpower(RFAmp)).*VoltsPerSpoke;    %W per TR
-    cAvgPwrPerChan10s = AvgPowerPerTR - currentConstraints.flPTxCoilPerChAvPwrLimit_10s;
-    cAvgPwrPerChan6min = AvgPowerPerTR - currentConstraints.flPTxCoilPerChAvPwrLimit_LT;
+    cAvgPwrPerChan10s = AvgPowerPerTR/2 - currentConstraints.flPTxCoilPerChAvPwrLimit_10s;
+    cAvgPwrPerChan6min = AvgPowerPerTR/2 - currentConstraints.flPTxCoilPerChAvPwrLimit_LT;
     SumPwrPerTR = sum(AvgPowerPerTR,1);    %W per TR
-    cSumPwrPerTR10s = SumPwrPerTR - currentConstraints.flPTxCoilSumAvPwrLimit_10s; 
-    cSumPwrPerTR6min = SumPwrPerTR - currentConstraints.flPTxCoilSumAvPwrLimit_LT; 
+    cSumPwrPerTR10s = SumPwrPerTR/2 - currentConstraints.flPTxCoilSumAvPwrLimit_10s; 
+    cSumPwrPerTR6min = SumPwrPerTR/2 - currentConstraints.flPTxCoilSumAvPwrLimit_LT; 
  
  c = [cPeakPwrPerChan; cAvgPwrPerChan10s; cAvgPwrPerChan6min; cSumPwrPerTR10s; cSumPwrPerTR6min];
 
