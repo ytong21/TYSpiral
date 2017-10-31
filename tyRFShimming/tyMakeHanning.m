@@ -1,4 +1,4 @@
-function RFObj = tyMakeHanning(Duration,SliceThickness)
+function RFStruct = tyMakeHanning(Duration,SliceThickness)
 %Duration "us"
 %NumZeros unitless
 %SliceThickness "mm"
@@ -34,9 +34,9 @@ k = k/100; %1/cm. For simulation use.
     RFOn(G_shape == 1) = true;
 
     OffResonance = linspace(-5000,5000,2000);
-    RF_pulse = 42.57*RF_pulse;
+    RF_pulse_bloch = 42.57*RF_pulse;
     [mxss1,myss1_mt,~] =  bloch_CTR_Hz...
-            (complex(real(RF_pulse),imag(RF_pulse)),zeros(numel(RF_pulse),3),...
+            (complex(real(RF_pulse_bloch),imag(RF_pulse_bloch)),zeros(numel(RF_pulse_bloch),3),...
             10E-6,T1,T2,OffResonance,[0,0,0],0);
     mxy = abs(mxss1+1i*myss1_mt);
     MagOnRes = max(mxy(:));
@@ -46,7 +46,7 @@ k = k/100; %1/cm. For simulation use.
 % plot(linspace(0,Duration,NumPoints),sinc_pulse)
 % xlim([0,Duration])
 
-RFObj = struct('kTraj',k,'RF_pulse',RF_pulse,'GradShape',G_shape*G_amp,...
+RFStruct = struct('kTraj',k,'RF_pulse',RF_pulse,'GradShape',G_shape*G_amp,...
     'RFOn',RFOn,'DurationInSec',DurationInSec,'DeltaF',DeltaF,'mxy',mxy,...
     'FArBloch',FArBloch);
 
