@@ -20,6 +20,7 @@
 
     maskedMaps.b1SensMasked = ptxFMObj.getB1PerV('uT','delete');
     maskedMaps.b0MapMasked = ptxFMObj.getB0('Hz','delete');
+    maskedMaps.b0MapMaskedRad = (2*pi)*maskedMaps.b0MapMasked;
     maskedMaps.posVox = ptxFMObj.getPositions('cm','delete').';
     maskedMaps.localiser = ptxFMObj.getLoc('none');
     
@@ -27,7 +28,7 @@
     RFStruct = tyMakeHanning(600,5);
     %%  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
-    AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked,...
+    AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMaskedRad,...
     maskedMaps.posVox); %Nv-(2*Nc) sys mtx, rad/V
     tikhonovArray = power(10,-5:-1);
     bVE = zeros(8,numel(tikhonovArray));
@@ -49,25 +50,27 @@
     [~, minIndex] = min(NRMSE);
     disp('Active-set optimization finished')    
     %%  Bloch Simulation
+    disp('Running Bloch simulation...')
     bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
-    RFToSim = bsxfun(@times, bmin, repmat(RFStruct.RF_pulse,8));
-    GToSim = 425.8*RFStruct.G_amp*ones(1,numel(RFToSim)/8);     %from mT/m to Hz/cm
+    RFToSim = bsxfun(@times, bmin, repmat(RFStruct.RF_pulse,8,1));
+    RFToSim = RFToSim';
+    GToSim = zeros(numel(RFToSim)/8,3);
+    %GToSim(:,3) = 425.8*RFStruct.G_amp*ones(numel(RFToSim)/8,1);     %from mT/m to Hz/cm
     B1ToSim = ptxFMObj.getB1PerV('Hz','delete');
-    magnetization = make_blochSim(complex(real(RFToSim),imag(RFToSim)),complex(B1ToSim),...
-        GToSim,10E-6,maskedMaps.b0MapMasked,maskedMaps.posVox,0);
+    magnetization = make_blochSim(RFToSim,B1ToSim,...
+        maskedMaps.b0MapMasked,GToSim,10E-6,maskedMaps.posVox,maskedMaps.mask);
+    disp('Bloch simulation complete.')
     %%  Plotting
-
-  figure(56)
-  title('Select Rect Regions to Plot')
-  imagesc(maskedMaps.localiser(:,:,SliceIdx));
-  h2plot = imrect;
-  wait(h2plot);
-  close(56)
-  plotMask = logical(createMask(h2plot));
-  [rol,cow] = find(plotMask);
-  plotRolArray = rol(1):rol(end);
-  plotCowArray = cow(1):cow(end);
-    
+% 
+%   figure(56)
+%   imagesc(maskedMaps.localiser(:,:,SliceIdx));
+%   title('Select Rect Regions to Plot')
+%   h2plot = imrect;
+%   wait(h2plot);
+%   plotMask = logical(createMask(h2plot));
+%   [rol,cow] = find(plotMask);
+%   plotRolArray = rol(1):rol(end);
+%   plotCowArray = cow(1):cow(end);   
 
   mVec = AFull*bmin;
   m = zeros(size(maskedMaps.mask));
@@ -75,14 +78,26 @@
   
   
   figure(57)
-  NonZeroIdx = find(maskedMaps.mask);
+  
+  subplot(1,3,1);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx-1)));title(sprintf('Slice %d',SliceIdx-1));colorbar
+  subplot(1,3,2);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
+  subplot(1,3,3);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx+1)));title(sprintf('Slice %d',SliceIdx+1));colorbar
+   
+  figure(5)
+  
   subplot(1,3,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx-1)));title(sprintf('Slice %d',SliceIdx-1));colorbar
   subplot(1,3,2);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
   subplot(1,3,3);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx+1)));title(sprintf('Slice %d',SliceIdx+1));colorbar
   
-  figure(58)
-  subplot(1,2,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)));title('Central Slice');colorbar
-  subplot(1,2,2);imagesc(abs(abs(m(plotRolArray,plotCowArray,SliceIdx)) - deg2rad(param.targetFlipAngle)*abs(maskedMaps.mask(:,:,10))))
-  title('Central Slice Error');colorbar
+%   figure(59)
+%   subplot(1,2,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)));title('Central Slice');colorbar
+%   subplot(1,2,2);imagesc(abs(abs(m(plotRolArray,plotCowArray,SliceIdx)) - deg2rad(param.targetFlipAngle)*abs(maskedMaps.mask(:,:,10))))
+%   title('Central Slice Error');colorbar
+%     
     
-    
+%%
+    figure(97);
+ b1map = ptxFMObj.getB1PerV('uT','NaN');
+ b1map = squeeze(sum(b1map,4));
+ figure(54);imagesc(abs(b1map(:,:,10)))
+ colorbar
