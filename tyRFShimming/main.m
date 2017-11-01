@@ -26,7 +26,7 @@
     maskedMaps.mask = ptxFMObj.getMask();
     RFStruct = tyMakeHanning(600,5);
     %%  Running RF shimming Step 1: Variable-exchange method
-    disp('Running variable-exchange optimization...')
+    disp('Running RF shimming variable-exchange optimization...')
     AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked,...
     maskedMaps.posVox); %Nv-(2*Nc) sys mtx, rad/V
     tikhonovArray = power(10,-5:-1);
@@ -35,8 +35,9 @@
         param.CGtikhonov = tikhonovArray(iDx);
         [bVE(:,iDx),~,~,~] = runVE(AFull,param,maskedMaps);
     end
+    disp('Variable-exchange optimization finished')
     %%  Running RF shimming Step 2: Active-set method
-    disp('Running active-set optimization...')
+    disp('Running RF shimming active-set optimization...')
     bAS = zeros(16,numel(tikhonovArray));
     NRMSE = zeros(size(tikhonovArray));
     output = cell(size(NRMSE));
@@ -44,20 +45,21 @@
     for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
         [bAS(:,iDx),NRMSE(iDx),exitflag(iDx),output{iDx}] = runAS(bVE(:,iDx),RFStruct,maskedMaps,param,AFull);
-    end    
-    
-    %%  Plotting
+    end
     [~, minIndex] = min(NRMSE);
+    disp('Active-set optimization finished')    
+    %%  Bloch Simulation and Plotting
+
   figure(56)
+  title('Select Rect Regions to Plot')
   imagesc(maskedMaps.localiser(:,:,SliceIdx));
   h2plot = imrect;
   wait(h2plot);
+  close(56)
   plotMask = logical(createMask(h2plot));
   [rol,cow] = find(plotMask);
   plotRolArray = rol(1):rol(end);
   plotCowArray = cow(1):cow(end);
-  
-  %%
     
   bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
   mVec = AFull*bmin;

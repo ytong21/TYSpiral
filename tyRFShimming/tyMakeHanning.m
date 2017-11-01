@@ -2,7 +2,7 @@ function RFStruct = tyMakeHanning(Duration,SliceThickness)
 %Duration "us"
 %NumZeros unitless
 %SliceThickness "mm"
-    NumZeros = 2;
+    %NumZeros = 2;
     T1 = 1500e-3;
     T2 = 70e-3;
 %FAr in rad/uT
@@ -15,18 +15,7 @@ function RFStruct = tyMakeHanning(Duration,SliceThickness)
 RF_pulse = Hanning_window(NumPoints);
 GyroRatio = 42.57e6; %Hz/T
 
-%Calculating required gradient amplitutde
-t0 = (Duration*(1e-6))/NumZeros;
-DeltaF = 1/t0;
-GyroRatioPerMT = 42.57e3; %Hz/T
-G_amp = (2*pi*DeltaF)/(2*pi*GyroRatioPerMT*SliceThicknessInMeter); %mT/m
 
-% Building k-space trajectory
-%g = ones();
-
-k = zeros(NumPoints,2);
-k(:,2) = linspace(0,GyroRatio*G_amp*(Duration*(1e-6)),NumPoints); %1/m
-k = k/100; %1/cm. For simulation use. 
 %Grissom seems to prefer g/cm and cm.
 % Building the gradient shape, ramp up and ramp down of 1000us included 
     G_shape = [linspace(0,1,25),ones(1,NumPoints),linspace(1,0,25)]';
@@ -46,7 +35,21 @@ k = k/100; %1/cm. For simulation use.
 % plot(linspace(0,Duration,NumPoints),sinc_pulse)
 % xlim([0,Duration])
 
+%Calculating required gradient amplitutde
+
+DeltaF = fwhm(OffResonance,mxy);
+GyroRatioPerMT = 42.57e3; %Hz/T
+G_amp = (2*pi*DeltaF)/(2*pi*GyroRatioPerMT*SliceThicknessInMeter); %mT/m
+
+% Building k-space trajectory
+%g = ones();
+
+k = zeros(NumPoints,2);
+k(:,2) = linspace(0,GyroRatio*G_amp*(Duration*(1e-6)),NumPoints); %1/m
+k = k/100; %1/cm. For simulation use. 
+
+
 RFStruct = struct('kTraj',k,'RF_pulse',RF_pulse,'GradShape',G_shape*G_amp,...
     'RFOn',RFOn,'DurationInSec',DurationInSec,'DeltaF',DeltaF,'mxy',mxy,...
-    'FArBloch',FArBloch);
+    'FArBloch',FArBloch,'G_amp',G_amp);
 
