@@ -48,7 +48,14 @@
     end
     [~, minIndex] = min(NRMSE);
     disp('Active-set optimization finished')    
-    %%  Bloch Simulation and Plotting
+    %%  Bloch Simulation
+    bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
+    RFToSim = bsxfun(@times, bmin, repmat(RFStruct.RF_pulse,8));
+    GToSim = 425.8*RFStruct.G_amp*ones(1,numel(RFToSim)/8);     %from mT/m to Hz/cm
+    B1ToSim = ptxFMObj.getB1PerV('Hz','delete');
+    magnetization = make_blochSim(complex(real(RFToSim),imag(RFToSim)),complex(B1ToSim),...
+        GToSim,10E-6,maskedMaps.b0MapMasked,maskedMaps.posVox,0);
+    %%  Plotting
 
   figure(56)
   title('Select Rect Regions to Plot')
@@ -61,7 +68,7 @@
   plotRolArray = rol(1):rol(end);
   plotCowArray = cow(1):cow(end);
     
-  bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
+
   mVec = AFull*bmin;
   m = zeros(size(maskedMaps.mask));
   m(maskedMaps.mask) = mVec;
