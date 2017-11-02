@@ -7,7 +7,7 @@
     %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
     SliceIdx = input('Please enter the slice number: \n');
     ptxFMObj.interpolateTo('Localiser');
-    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x,SliceIdx),true);  
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x),true);  
     %ptxFMObj.setSlice(10);
     %%  Specifying parameters
     param.targetFlipAngle = 15;
@@ -23,14 +23,38 @@
     maskedMaps.b0MapMaskedRad = (2*pi)*maskedMaps.b0MapMasked;
     maskedMaps.posVox = ptxFMObj.getPositions('cm','delete').';
     maskedMaps.localiser = ptxFMObj.getLoc('none');
+    maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
     
     maskedMaps.mask = ptxFMObj.getMask();
     RFStruct = tyMakeHanning(600,5);
+
+    
+    %%  Constructing system matrix
+    disp('Calculating system matrix...');
+    SysMatMode = 'Full';
+    if strcmp(SysMatMode,'Approximation');
+        AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked,...
+        maskedMaps.posVox); %Nv-(2*Nc) sys mtx, rad/V
+    elseif strcmp(SysMatMode,'Full');
+        gr = zeros(numel(RFStruct.RF_pulse),3);
+        rfOn = true(size(gr,1),1);
+        tp = (0:(numel(RFStruct.RF_pulse)-1))*10E-6;
+        DA = genAMatFull(tp',rfOn,gr,maskedMaps.b1SensMaskedHz,...
+            maskedMaps.b0MapMasked,maskedMaps.b0MapMasked);
+     %  To take the RF pulse shape into account. Construct a
+     %  pseudo-diagonal matrix
+        RFDiag = zeros(size(DA,2),8);
+        RFSize = numel(RFStruct.RF_pulse);
+        for iDx = 1:8
+            RFDiag(((1:RFSize)+(iDx-1)*RFSize),iDx) = RFStruct.RF_pulse';
+        end
+        AFull = DA*RFDiag;
+    end
+    disp('complete')
     %%  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
-    AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked,...
-    maskedMaps.posVox); %Nv-(2*Nc) sys mtx, rad/V
-    tikhonovArray = power(10,-5:-1);
+
+    tikhonovArray = power(10,-8:-1);
     bVE = zeros(8,numel(tikhonovArray));
     for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
@@ -51,7 +75,7 @@
     disp('Active-set optimization finished')    
     %%  Bloch Simulation
     disp('Running Bloch simulation...')
-    bmin = bAS(1:8,1).*exp(1i*bAS(9:16,1));
+    bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
     RFToSim = bsxfun(@times, bmin, repmat(RFStruct.RF_pulse,8,1));
     RFToSim = RFToSim';
     GToSim = zeros(numel(RFToSim)/8,3);
