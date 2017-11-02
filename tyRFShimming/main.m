@@ -28,7 +28,7 @@
     RFStruct = tyMakeHanning(600,5);
     %%  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
-    AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMaskedRad,...
+    AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked,...
     maskedMaps.posVox); %Nv-(2*Nc) sys mtx, rad/V
     tikhonovArray = power(10,-5:-1);
     bVE = zeros(8,numel(tikhonovArray));
@@ -51,7 +51,7 @@
     disp('Active-set optimization finished')    
     %%  Bloch Simulation
     disp('Running Bloch simulation...')
-    bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
+    bmin = bAS(1:8,1).*exp(1i*bAS(9:16,1));
     RFToSim = bsxfun(@times, bmin, repmat(RFStruct.RF_pulse,8,1));
     RFToSim = RFToSim';
     GToSim = zeros(numel(RFToSim)/8,3);
@@ -59,10 +59,10 @@
     B1ToSim = ptxFMObj.getB1PerV('Hz','delete');
     magnetization = make_blochSim(RFToSim,B1ToSim,...
         maskedMaps.b0MapMasked,GToSim,10E-6,maskedMaps.posVox,maskedMaps.mask);
-    disp('Bloch simulation complete.')
+    disp('Bloch simulation complete')
     %%  Plotting
 % 
-%   figure(56)
+%  figure(56)
 %   imagesc(maskedMaps.localiser(:,:,SliceIdx));
 %   title('Select Rect Regions to Plot')
 %   h2plot = imrect;
@@ -71,7 +71,7 @@
 %   [rol,cow] = find(plotMask);
 %   plotRolArray = rol(1):rol(end);
 %   plotCowArray = cow(1):cow(end);   
-
+    %bTmp = bAS(1:8,1).*exp(1i*bAS(9:16,1));
   mVec = AFull*bmin;
   m = zeros(size(maskedMaps.mask));
   m(maskedMaps.mask) = mVec;
@@ -83,7 +83,7 @@
   subplot(1,3,2);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
   subplot(1,3,3);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx+1)));title(sprintf('Slice %d',SliceIdx+1));colorbar
    
-  figure(5)
+  figure(58)
   
   subplot(1,3,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx-1)));title(sprintf('Slice %d',SliceIdx-1));colorbar
   subplot(1,3,2);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
@@ -96,8 +96,7 @@
 %     
     
 %%
-    figure(97);
  b1map = ptxFMObj.getB1PerV('uT','NaN');
  b1map = squeeze(sum(b1map,4));
- figure(54);imagesc(abs(b1map(:,:,10)))
+ figure(54);imagesc(abs(b1map(plotRolArray,plotCowArray,10)))
  colorbar
