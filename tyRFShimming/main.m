@@ -7,12 +7,12 @@
     %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
     SliceIdx = input('Please enter the slice number: \n');
     ptxFMObj.interpolateTo('Localiser');
-    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x),true);  
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x,10),true);  
     %ptxFMObj.setSlice(10);
     %%  Specifying parameters
-    param.targetFlipAngle = 15;
+    param.targetFlipAngle = 20;
     param.numCh = 8;
-    param.TR = 1e-3;% sec
+    param.TR = 1.5e-3;% sec
     param.CGtikhonov = 1e-6;
     param.tol = 1e-5;
     param.MaxEvaluation = 25000;
@@ -31,16 +31,15 @@
     
     %%  Constructing system matrix
     disp('Calculating system matrix...');
-    SysMatMode = 'Full';
+    SysMatMode = 'Approximation';
     if strcmp(SysMatMode,'Approximation');
-        AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked,...
-        maskedMaps.posVox); %Nv-(2*Nc) sys mtx, rad/V
+        AFull = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked); %Nv-(2*Nc) sys mtx, rad/V
     elseif strcmp(SysMatMode,'Full');
         gr = zeros(numel(RFStruct.RF_pulse),3);
         rfOn = true(size(gr,1),1);
-        tp = (0:(numel(RFStruct.RF_pulse)-1))*10E-6;
-        DA = genAMatFull(tp',rfOn,gr,maskedMaps.b1SensMaskedHz,...
-            maskedMaps.b0MapMasked,maskedMaps.b0MapMasked);
+        tp = 10E-6 * ones(size(rfOn));
+        DA = genAMatFull(tp,rfOn,gr,maskedMaps.b1SensMaskedHz,...
+            maskedMaps.b0MapMasked,maskedMaps.posVox);
      %  To take the RF pulse shape into account. Construct a
      %  pseudo-diagonal matrix
         RFDiag = zeros(size(DA,2),8);
@@ -48,9 +47,10 @@
         for iDx = 1:8
             RFDiag(((1:RFSize)+(iDx-1)*RFSize),iDx) = RFStruct.RF_pulse';
         end
-        AFull = DA*RFDiag;
+        AFullMag = DA*RFDiag;  %    magnetization /V
+        AFull = asin(AFullMag);   % rad/V  Dupas paper in rad/V
     end
-    disp('complete')
+    disp('Complete')
     %%  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
 
@@ -58,7 +58,8 @@
     bVE = zeros(8,numel(tikhonovArray));
     for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
-        [bVE(:,iDx),~,~,~] = runVE(AFull,param,maskedMaps);
+        [bVE(:,iDx),NRMSETmp,~,~] = runVE(AFull,param,maskedMaps);
+        disp(NRMSETmp)
     end
     disp('Variable-exchange optimization finished')
     %%  Running RF shimming Step 2: Active-set method
@@ -75,8 +76,9 @@
     disp('Active-set optimization finished')    
     %%  Bloch Simulation
     disp('Running Bloch simulation...')
-    bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
-    RFToSim = bsxfun(@times, bmin, repmat(RFStruct.RF_pulse,8,1));
+    bmin = bVE(:,minIndex);
+    %bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
+    RFToSim = bsxfun(@times, (bmin), repmat(RFStruct.RF_pulse,8,1));
     RFToSim = RFToSim';
     GToSim = zeros(numel(RFToSim)/8,3);
     %GToSim(:,3) = 425.8*RFStruct.G_amp*ones(numel(RFToSim)/8,1);     %from mT/m to Hz/cm
@@ -84,7 +86,7 @@
     magnetization = make_blochSim(RFToSim,B1ToSim,...
         maskedMaps.b0MapMasked,GToSim,10E-6,maskedMaps.posVox,maskedMaps.mask);
     disp('Bloch simulation complete')
-    %%  Plotting
+    %  Plotting
 % 
 %  figure(56)
 %   imagesc(maskedMaps.localiser(:,:,SliceIdx));
@@ -96,22 +98,26 @@
 %   plotRolArray = rol(1):rol(end);
 %   plotCowArray = cow(1):cow(end);   
     %bTmp = bAS(1:8,1).*exp(1i*bAS(9:16,1));
-  mVec = AFull*bmin;
+  mVec = AFull*(bmin);
   m = zeros(size(maskedMaps.mask));
   m(maskedMaps.mask) = mVec;
-  
+  % Scaling
+  m = rad2deg(m);
+  %mBloch = asind(abs(magnetization.mxy));
+  mBloch = magnetization.mxy;
   
   figure(57)
+  PlotFALim = [10 25];
   
-  subplot(1,3,1);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx-1)));title(sprintf('Slice %d',SliceIdx-1));colorbar
-  subplot(1,3,2);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
-  subplot(1,3,3);imagesc(abs(magnetization.mxy(plotRolArray,plotCowArray,SliceIdx+1)));title(sprintf('Slice %d',SliceIdx+1));colorbar
+  subplot(1,3,1);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx-1)));title(sprintf('Slice %d',SliceIdx-1));colorbar
+  subplot(1,3,2);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
+  subplot(1,3,3);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx+1)));title(sprintf('Slice %d',SliceIdx+1));colorbar
    
   figure(58)
   
-  subplot(1,3,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx-1)));title(sprintf('Slice %d',SliceIdx-1));colorbar
-  subplot(1,3,2);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)));title(sprintf('Slice %d',SliceIdx));colorbar 
-  subplot(1,3,3);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx+1)));title(sprintf('Slice %d',SliceIdx+1));colorbar
+  subplot(1,3,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
+  subplot(1,3,2);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
+  subplot(1,3,3);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
   
 %   figure(59)
 %   subplot(1,2,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)));title('Central Slice');colorbar
@@ -120,7 +126,62 @@
 %     
     
 %%
- b1map = ptxFMObj.getB1PerV('uT','NaN');
- b1map = squeeze(sum(b1map,4));
- figure(54);imagesc(abs(b1map(plotRolArray,plotCowArray,10)))
+ b1map = ptxFMObj.getB1PerV('Hz','NaN');
+ b1mapCP = squeeze(sum(b1map,4));
+ figure(54);imagesc(abs(b1map(:,:,11)))
  colorbar
+ %%
+ subplot(4,2,1);imagesc(abs(b1map(:,:,10)))
+ 
+ %%
+ B1ToSim = ptxFMObj.getB1PerV('Hz','delete');
+ 
+ DA = genAMatFull(600e-6,true,false,maskedMaps.b1SensMaskedHz,...
+            maskedMaps.b0MapMasked,maskedMaps.posVox);
+        singleSLiceMask = maskedMaps.mask(:,:,9:11);
+  fullImg = zeros(size(singleSLiceMask));      
+ figure (1234)
+ clf
+ 
+ for iDx = 1
+    %voltvec = 50*ones(1,8);
+    %voltvec(iDx) = 10;
+    voltvec = bmin.';
+    RFToSim = bsxfun(@times,repmat(RFStruct.RF_pulse.',1,8),voltvec);
+    magnetization1 = make_blochSim(RFToSim,B1ToSim,... 
+        maskedMaps.b0MapMasked,zeros(size(RFToSim,1),3),10E-6,maskedMaps.posVox,maskedMaps.mask);
+    
+    subplot(1,3,1)
+    imagesc(abs(magnetization1.mxy(:,:,10)))
+    caxis([0 sind(30)])
+  
+    
+    subplot(1,3,2)
+    amatMag = DA*(voltvec.'*(sum(RFStruct.RF_pulse)/numel(RFStruct.RF_pulse)));
+    fullImg(singleSLiceMask(:)) = amatMag;
+       imagesc(abs(fullImg(:,:,2)))
+    caxis([0 sind(30)])
+    
+    subplot(1,3,3)
+  
+       imagesc(abs(fullImg(:,:,2))-abs(magnetization1.mxy(:,:,10)))
+       colorbar
+    caxis([0 sind(30)/20])
+    drawnow()
+    pause(0.1)
+ end
+ 
+ 
+ %%
+     RFToSim = bsxfun(@times,repmat(RFStruct.RF_pulse.',1,8),voltvec);
+    magnetization = make_blochSim(RFToSim,B1ToSim,... 
+        maskedMaps.b0MapMasked,zeros(size(RFToSim,1),3),10E-6,maskedMaps.posVox,maskedMaps.mask);
+    
+    
+    
+        magnetization = make_blochSim(RFToSim,B1ToSim,...
+        maskedMaps.b0MapMasked,GToSim,10E-6,maskedMaps.posVox,maskedMaps.mask);
+    
+    
+    B1ToSim = ptxFMObj.getB1PerV('Hz','delete');    %WTC
+     B1ToSim = ptxFMObj.getB1PerV('Hz','delete');   %TY

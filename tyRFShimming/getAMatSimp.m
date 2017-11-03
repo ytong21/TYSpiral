@@ -1,10 +1,8 @@
-function AFullSpokes = getAMatSimp(RFStruct,sens,df,dp)
+function AFullSpokes = getAMatSimp(RFStruct,sens,df)
 
 %RF_pulse = RF_pulse_mag.*exp(1i*RF_pulse_phase);
  
-if size(sens,1) ~= size(dp,1)
-    error('Sensitivity first dimension must be the same size as the position first dimension.');
-end
+
 
 %Duration in seconds
 %sense in uT/Volt

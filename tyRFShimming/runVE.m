@@ -1,12 +1,12 @@
 function [bOut,finalRMSE,finalPwr,finalMag] =runVE(AFullFunc,param,maskedMaps)
 
-    MaxVEIter = 30;
+    MaxVEIter = 50;
     cost = inf;
     xCurr = zeros(param.numCh,1);
     Tol = 0.001;    
     targetFAInRad = ones(size(maskedMaps.b0MapMasked))*deg2rad(param.targetFlipAngle);
     
-    phiTarget = angle(sum(maskedMaps.b1SensMasked,2));
+    phiTarget = angle(sum(maskedMaps.b1SensMaskedHz,2));
     z = exp(1i*phiTarget);
     fullImage =  zeros(numel(maskedMaps.mask),1);
     CGtikhonov = param.CGtikhonov;
@@ -49,7 +49,7 @@ finalPwr = norm(xCurr);
     finalMag = reshape(finalMag,size(maskedMaps.mask));
 
 %finalRMSE = norm(currFA - targetFA);
-finalRMSE = norm(abs(currFA) - abs(targetFA))/mean(abs(currFA));
+finalRMSE = norm(abs(currFA) - abs(targetFA))/norm(abs(targetFA));
 
 % fprintf('\n Tikhonov = %f \n',CGtikhonov)
 % fprintf('Power = %f \n',finalPwr)
