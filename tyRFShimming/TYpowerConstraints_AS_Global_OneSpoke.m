@@ -22,10 +22,16 @@ ceq = [];
 %Second Nc*2 elements = angle parts of complex per channel weights for 2 spokes
 %For case 'Kb', last two elements = [deltaKx;deltaKy];
     % Define
-impedance = 50; % ohms matched
-WTCpower =@(x) x.^2./impedance;
+    impedance = 50; % ohms matched
+    WTCpower =@(x) x.^2./impedance;
     %voltage = @(p) sqrt(p*impedance);
-    RFAmp = x(1:8);
+    if numel(x) == 16
+        RFAmp = x(1:8);
+    elseif numel(x) == 1
+        RFAmp = ones(8,1)*x;
+    else
+        disp('Please check the size of input vector')
+    end
     cPeakPwrPerChan = WTCpower(RFAmp) - currentConstraints.flPTxCoilPerChPeakPwrLimit;
     
     RFAmpFull = zeros(8,numel(RF_pulse));

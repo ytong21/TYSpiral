@@ -3,7 +3,7 @@ function [bOut,fval,exitflag,output] = runAS(bVE,RFStruct,maskedMaps,param,AFull
 
 % sens = maskedMaps.b1SensMasked;
 % dp = maskedMaps.posVox;
-df = maskedMaps.b0MapMasked;
+    df = maskedMaps.b0MapMasked;
 
 
     %Setting upper and lower bounds

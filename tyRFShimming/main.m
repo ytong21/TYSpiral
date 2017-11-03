@@ -84,6 +84,10 @@
     magnetization = make_blochSim(RFToSim,B1ToSim,...
         maskedMaps.b0MapMasked,GToSim,10E-6,maskedMaps.posVox,maskedMaps.mask);
     disp('Bloch simulation complete')
+    
+    %%  Finding out what CP mode can do
+    AFullCP = AFull*ones(8,1);
+    
     %%  Plotting
   if ~exist('plotRolArray','var')
       figure(56)
@@ -124,8 +128,6 @@
  b1mapCP = squeeze(sum(b1map,4));
  figure(54);imagesc(abs(b1map(:,:,11)))
  colorbar
- %%
- subplot(4,2,1);imagesc(abs(b1map(:,:,10)))
  
  %%     WTC debugging
  B1ToSim = ptxFMObj.getB1PerV('Hz','delete');
