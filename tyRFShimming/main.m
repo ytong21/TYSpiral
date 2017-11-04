@@ -87,7 +87,7 @@
     
     %%  Finding out what CP mode can do
     AFullCP = AFull*ones(8,1);
-    
+    bSingle = runCP(AFullCP,param,RFStruct);
     %%  Plotting
   if ~exist('plotRolArray','var')
       figure(56)
@@ -101,11 +101,17 @@
   end
   
   mVec = AFull*(bmin);
+  mCPVec = AFull*bCP;
   m = zeros(size(maskedMaps.mask));
   m(maskedMaps.mask) = mVec;
+  
+  mCP = zeros(size(maskedMaps.mask));
+  mCP(maskedMaps.mask) = mCPVec;
+  mCP = rad2deg(mCP);
   % Scaling (showing flip angle)
   m = rad2deg(m);
   mBloch = asind(magnetization.mxy);
+  
   
   figure(57);PlotFALim = [10 25];  
   subplot(1,3,1);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
@@ -118,6 +124,11 @@
   subplot(1,3,3);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
   
   figure(59)
+  subplot(1,3,1);imagesc(abs(mCP(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
+  subplot(1,3,2);imagesc(abs(mCP(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
+  subplot(1,3,3);imagesc(abs(mCP(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
+  
+  figure(60)
   subplot(1,2,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title('Central slice');colorbar
   error = mBloch - param.targetFlipAngle*abs(maskedMaps.mask);
   subplot(1,2,2);imagesc(abs(error(plotRolArray,plotCowArray,SliceIdx)),[0 2]);
