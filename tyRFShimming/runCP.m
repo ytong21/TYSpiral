@@ -1,8 +1,9 @@
-function bCP = runCP(AFullCP,param,RFStruct)
+function bCP = runCP(AFull,param,RFStruct)
     maxV = 239; % Check where I got this. (WTC)
-    ub = [maxV ones(1,8)*inf];
-    lb = [0 -ones(1,8)*inf];
+    ub = maxV;
+    lb = 0;
     
+    AFullCP = AFull*ones(8,1);
     
     optionsFMin = optimoptions(@fmincon);
     optionsFMin.Algorithm = 'active-set';
@@ -17,11 +18,12 @@ function bCP = runCP(AFullCP,param,RFStruct)
         param.TR,RFStruct.RF_pulse);
 
     TargetFA = ones(size(AFullCP,1),1)*deg2rad(param.targetFlipAngle);
-    xInitial = (TargetFA')/(AFullCP');
+    xInitial = abs((TargetFA')/(AFullCP'));
     FunHandle = @(x) -goodnessOfFit(abs(AFullCP*x),TargetFA,'NRMSE');
     %VoltageArray = 10:5:80;
     %bSingle = zeros(size(VoltageArray));
-    for iDx = 1:numel(VoltageArray)
-        [bCP,~,~,~] = fmincon(FunHandle,xInitial,[],[],[],[],lb.',ub.',nonlincon,optionsFMin);
-    end
+    %for iDx = 1:numel(VoltageArray)
+        [bSingle,~,~,~] = fmincon(FunHandle,xInitial,[],[],[],[],lb.',ub.',nonlincon,optionsFMin);
+    %end
+    bCP = ones(8,1)*bSingle;
 end

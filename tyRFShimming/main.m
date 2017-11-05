@@ -84,8 +84,14 @@
     disp('Bloch simulation complete')
     
     %%  Finding out what CP mode can do
-    AFullCP = AFull*ones(8,1);
-    bSingle = runCP(AFullCP,param,RFStruct);
+    bCP = runCP(AFull,param,RFStruct);
+    %%  Running phase only optimization
+    tic
+        [bPhaseTmp, ErrorOut] = runPhaseOnly(AFull,param,RFStruct);
+    toc
+    [~, minPhaseIndex] = min(ErrorOut);
+    %%
+    bPhase = bPhaseTmp(1,minPhaseIndex)*exp(1i*bPhaseTmp(2:9,minPhaseIndex));
     
     %%  Calculate magnetization and NRMSE
   rmse = @(x,xref) sqrt(immse(x,xref));
@@ -94,18 +100,22 @@
   FAFinal = struct;
   FAFinal.CP = rad2deg(AFull*bCP);
   FAFinal.AS = rad2deg(AFull*bmin);
+  FAFinal.PhaseOnly = rad2deg(AFull*bPhase);
   
   FullImage = struct;
   JawSlicesMask = maskedMaps.mask(:,:,SliceIdx-1:SliceIdx+1);
   FullImage.CP = zeros(size(JawSlicesMask));
-  FullImage.CP(JawSlicesMask) = FAFinal.CP;
+  FullImage.CP(JawSlicesMask) = abs(FAFinal.CP);
   FullImage.AS = zeros(size(JawSlicesMask));
-  FullImage.AS(JawSlicesMask) = FAFinal.AS;  
+  FullImage.AS(JawSlicesMask) = abs(FAFinal.AS);  
   FullImage.ASBloch = asind(magnetization.mxy);
+  FullImage.PhaseOnly = zeros(size(JawSlicesMask));
+  FullImage.PhaseOnly((JawSlicesMask)) = abs(FAFinal.PhaseOnly);  
   
   Error = struct;
   Error.CP = nrmse(abs(FAFinal.CP),ones(size(FAFinal.CP))*param.targetFlipAngle);
-  Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);  
+  Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
+  Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
     %%  Plotting
   if ~exist('plotRolArray','var')
       figure(56)
@@ -117,8 +127,8 @@
       plotRolArray = rol(1):rol(end);
       plotCowArray = cow(1):cow(end);     
   end
-   
-  figure(57);PlotFALim = [10 25];  
+  PlotFALim = [10 25];   
+  figure(57);
   subplot(1,3,1);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
   subplot(1,3,2);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
   subplot(1,3,3);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
@@ -145,42 +155,11 @@
  figure(54);imagesc(abs(b1map(:,:,11)))
  colorbar
  
- %%     WTC debugging
- B1ToSim = ptxFMObj.getB1PerV('Hz','delete');
- 
- DA = genAMatFull(600e-6,true,false,maskedMaps.b1SensMaskedHz,...
-            maskedMaps.b0MapMasked,maskedMaps.posVox);
-        singleSLiceMask = maskedMaps.mask(:,:,9:11);
-  fullImg = zeros(size(singleSLiceMask));      
- figure (1234)
- clf
- 
- for iDx = 1
-    %voltvec = 50*ones(1,8);
-    %voltvec(iDx) = 10;
-    voltvec = bmin.';
-    RFToSim = bsxfun(@times,repmat(RFStruct.RF_pulse.',1,8),voltvec);
-    magnetization1 = make_blochSim(RFToSim,B1ToSim,... 
-        maskedMaps.b0MapMasked,zeros(size(RFToSim,1),3),10E-6,maskedMaps.posVox,maskedMaps.mask);
-    
-    subplot(1,3,1)
-    imagesc(abs(magnetization1.mxy(:,:,10)))
-    caxis([0 sind(30)])
-  
-    
-    subplot(1,3,2)
-    amatMag = DA*(voltvec.'*(sum(RFStruct.RF_pulse)/numel(RFStruct.RF_pulse)));
-    fullImg(singleSLiceMask(:)) = amatMag;
-       imagesc(abs(fullImg(:,:,2)))
-    caxis([0 sind(30)])
-    
-    subplot(1,3,3)
-  
-       imagesc(abs(fullImg(:,:,2))-abs(magnetization1.mxy(:,:,10)))
-       colorbar
-    caxis([0 sind(30)/20])
-    drawnow()
-    pause(0.1)
- end
- 
- 
+%% Other plots
+figure(90)
+subplot(1,3,1)
+imagesc(FullImage.AS(plotRolArray,plotCowArray,2),PlotFALim); title('Full RF Shimming');colorbar
+subplot(1,3,2)
+imagesc(FullImage.CP(plotRolArray,plotCowArray,2),PlotFALim); title('CP Mode');colorbar
+subplot(1,3,3)
+imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2),PlotFALim); title('Phase Only');colorbar

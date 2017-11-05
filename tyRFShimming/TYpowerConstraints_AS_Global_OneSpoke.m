@@ -29,7 +29,7 @@ ceq = [];
         RFAmp = x(1:8);
     elseif numel(x) == 1    %   CP mode. 1 amp value only.
         RFAmp = ones(8,1)*x;
-    elseif numel(x) == 8    %   Phase-only. 1 amp and 8 phases. 
+    elseif numel(x) == 9    %   Phase-only. 1 amp and 8 phases. 
         RFAmp = ones(8,1)*x(1);
     else
         disp('Please check the size of input vector')
