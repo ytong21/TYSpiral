@@ -27,8 +27,6 @@
     
     maskedMaps.mask = ptxFMObj.getMask();
     RFStruct = tyMakeHanning(600,5);
-
-    
     %%  Constructing system matrix
     disp('Calculating system matrix...');
     SysMatMode = 'Full';
@@ -52,7 +50,6 @@
     disp('Complete')
     %%  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
-
     tikhonovArray = power(10,-8:-1);
     bVE = zeros(8,numel(tikhonovArray));
     for iDx = 1:numel(tikhonovArray)
@@ -72,7 +69,8 @@
         [bAS(:,iDx),NRMSE(iDx),exitflag(iDx),output{iDx}] = runAS(bVE(:,iDx),RFStruct,maskedMaps,param,AFull);
     end
     [~, minIndex] = min(NRMSE);
-    disp('Active-set optimization complete')    
+    disp('Active-set optimization complete')
+    
     %%  Bloch Simulation
     disp('Running Bloch simulation...')
     %bmin = bVE(:,minIndex);
@@ -88,6 +86,26 @@
     %%  Finding out what CP mode can do
     AFullCP = AFull*ones(8,1);
     bSingle = runCP(AFullCP,param,RFStruct);
+    
+    %%  Calculate magnetization and NRMSE
+  rmse = @(x,xref) sqrt(immse(x,xref));
+  nrmse = @(x,xref) rmse(x,xref)/mean(x);
+  % FA results in degrees in a masked vector form.
+  FAFinal = struct;
+  FAFinal.CP = rad2deg(AFull*bCP);
+  FAFinal.AS = rad2deg(AFull*bmin);
+  
+  FullImage = struct;
+  JawSlicesMask = maskedMaps.mask(:,:,SliceIdx-1:SliceIdx+1);
+  FullImage.CP = zeros(size(JawSlicesMask));
+  FullImage.CP(JawSlicesMask) = FAFinal.CP;
+  FullImage.AS = zeros(size(JawSlicesMask));
+  FullImage.AS(JawSlicesMask) = FAFinal.AS;  
+  FullImage.ASBloch = asind(magnetization.mxy);
+  
+  Error = struct;
+  Error.CP = nrmse(abs(FAFinal.CP),ones(size(FAFinal.CP))*param.targetFlipAngle);
+  Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);  
     %%  Plotting
   if ~exist('plotRolArray','var')
       figure(56)
@@ -99,20 +117,7 @@
       plotRolArray = rol(1):rol(end);
       plotCowArray = cow(1):cow(end);     
   end
-  
-  mVec = AFull*(bmin);
-  mCPVec = AFull*bCP;
-  m = zeros(size(maskedMaps.mask));
-  m(maskedMaps.mask) = mVec;
-  
-  mCP = zeros(size(maskedMaps.mask));
-  mCP(maskedMaps.mask) = mCPVec;
-  mCP = rad2deg(mCP);
-  % Scaling (showing flip angle)
-  m = rad2deg(m);
-  mBloch = asind(magnetization.mxy);
-  
-  
+   
   figure(57);PlotFALim = [10 25];  
   subplot(1,3,1);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
   subplot(1,3,2);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 

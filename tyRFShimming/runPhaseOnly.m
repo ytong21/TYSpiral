@@ -1,7 +1,7 @@
-function bCP = runCP(AFullCP,param,RFStruct)
+function bCP = runPhaseOnly(AFullCP,param,RFStruct)
     maxV = 239; % Check where I got this. (WTC)
-    ub = [maxV ones(1,8)*inf];
-    lb = [0 -ones(1,8)*inf];
+    ub = [maxV;];
+    lb = [0];
     
     
     optionsFMin = optimoptions(@fmincon);
