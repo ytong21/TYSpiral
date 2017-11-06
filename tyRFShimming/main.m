@@ -117,10 +117,37 @@
   FullImage.PhaseOnly = zeros(size(JawSlicesMask));
   FullImage.PhaseOnly((JawSlicesMask)) = abs(FAFinal.PhaseOnly);  
   
+  DiffImage.CP = NaN(size(JawSlicesMask));
+  DiffImage.CP(JawSlicesMask) = 100*(abs(FAFinal.CP) - ones(size(FAFinal.CP))*param.targetFlipAngle)/param.targetFlipAngle;
+  DiffImage.AS = NaN(size(JawSlicesMask));
+  DiffImage.AS(JawSlicesMask) = 100*(abs(FAFinal.AS) - ones(size(FAFinal.AS))*param.targetFlipAngle)/param.targetFlipAngle;  
+  DiffImage.ASBloch = asind(magnetization.mxy);
+  DiffImage.PhaseOnly = NaN(size(JawSlicesMask));
+  DiffImage.PhaseOnly((JawSlicesMask)) = 100*(abs(FAFinal.PhaseOnly) - ones(size(FAFinal.PhaseOnly))*param.targetFlipAngle)/param.targetFlipAngle;
+  
+  
   Error = struct;
   Error.CP = nrmse(abs(FAFinal.CP),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
+  
+  %%    Write RF pulse into file.
+  makeRFToWrite = @(b) [abs(b)/max(abs(b)), angle(b)];
+
+  ToWrite.Full = makeRFToWrite(bmin);
+  ToWrite.CP = makeRFToWrite(bCP);
+  ToWrite.PhaseOnly = makeRFToWrite(bPhase);
+  for iDx = 1:8
+      if ToWrite.Full(iDx,2) < 0
+          ToWrite.Full(iDx,2) = ToWrite.Full(iDx,2) + (2*pi);
+      elseif ToWrite.PhaseOnly(iDx,2) < 0
+          ToWrite.PhaseOnly(iDx,2) = ToWrite.PhaseOnly(iDx,2) + (2*pi);           
+      elseif ToWrite.CP(iDx,2) < 0
+          ToWrite.CP(iDx,2) = ToWrite.CP(iDx,2) + (2*pi);         
+      end
+  end
+  RFAmp.Full = max(abs(bmin));   RFAmp.CP = max(abs(bCP));    RFAmp.PhaseOnly = max(abs(bPhase));
+  RFShimWrite(ToWrite.Full);
     %%  Plotting
   if ~exist('plotRolArray','var')
       figure(56)
@@ -132,32 +159,27 @@
       plotRolArray = rol(1):rol(end);
       plotCowArray = cow(1):cow(end);     
   end
-  PlotFALim = [15 25];   
-
-%%
- b1map = ptxFMObj.getB1PerV('Hz','NaN');
- b1mapCP = squeeze(sum(b1map,4));
- figure(54);imagesc(abs(b1map(:,:,11)))
- colorbar
  
 %% Other plots
 figure(90)
 clf
-Figs = cell(3,2);
+ PlotFALim = [0 30];   
+Figs = cell(3,3);
 Figs{2,1} = subplot(3,2,3);
-imagesc(ImgToPlot.b1CP(plotRolArray,plotCowArray,SliceIdx)'); title('B1 Map');axis off;colorbar;hold on;
+FontSize = 6;
+imagesc(ImgToPlot.b1CP(plotRolArray,plotCowArray,SliceIdx)'); title('B1 Map','FontSize',FontSize);axis off;colorbar('FontSize',FontSize);hold on;
 colormap(Figs{2,1},'gray')
 visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
     'EnhanceVisibility', true,'LineStyle','-');axis off;
 
 Figs{3,1} = subplot(3,2,5); 
-imagesc(ImgToPlot.b0(plotRolArray,plotCowArray,SliceIdx)'); title('B0 Map');axis off;hold on;colorbar
+imagesc(ImgToPlot.b0(plotRolArray,plotCowArray,SliceIdx)'); title('B0 Map','FontSize',FontSize);axis off;hold on;colorbar('FontSize',FontSize);
 colormap(Figs{3,1},'gray')
 visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
     'EnhanceVisibility', true,'LineStyle','-');axis off;
 
 Figs{1,1} = subplot(3,2,1); 
-imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF');axis off;colormap(Figs{1,1},'gray')
+imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF','FontSize',FontSize);axis off;colormap(Figs{1,1},'gray')
 hold on
 visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
     'EnhanceVisibility', true,'LineStyle','-');axis off;
@@ -166,25 +188,48 @@ set(Figs{1,1},'Position',[hp3(1) hp3(2) Figs{3,1}.Position(3) hp3(4)]);
 %imagesc(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)');title('TOF');axis off;
 
 %hh = figure(91);
-
-Figs{1,2} = subplot(3,2,2);
-imagesc(FullImage.AS(plotRolArray,plotCowArray,2)',PlotFALim); title('Full RF Shimming');axis off;
-set(Figs{1,2},'Position',[Figs{1,2}.Position(1) Figs{1,2}.Position(2) Figs{1,1}.Position(3) Figs{1,2}.Position(4)]);
+HoriOffset = 0.05;
+Figs{1,2} = subplot(3,4,3);
+imagesc(FullImage.CP(plotRolArray,plotCowArray,2)',PlotFALim); title('CP Mode','FontSize',FontSize);axis off;
+set(Figs{1,2},'Position',[Figs{1,2}.Position(1)-HoriOffset Figs{1,2}.Position(2) Figs{1,2}.Position(3) Figs{1,2}.Position(4)]);
 colormap(Figs{1,2},'hot')
 
-Figs{2,2} = subplot(3,2,4);
-imagesc(FullImage.CP(plotRolArray,plotCowArray,2)',PlotFALim); title('CP Mode');axis off;
-set(Figs{2,2},'Position',[Figs{2,2}.Position(1) Figs{2,2}.Position(2) Figs{1,1}.Position(3) Figs{2,2}.Position(4)]);
+Figs{2,2} = subplot(3,4,7);
+imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2)',PlotFALim); title('Phase Only','FontSize',FontSize);axis off;
+set(Figs{2,2},'Position',[Figs{2,2}.Position(1)-HoriOffset Figs{2,2}.Position(2) Figs{2,2}.Position(3) Figs{2,2}.Position(4)]);
 colormap(Figs{2,2},'hot')
 
-Figs{3,2} = subplot(3,2,6);
-imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2)',PlotFALim); title('Phase Only');axis off;
-
-%set(Figs{2,2},'Position',[Figs{2,2}.Position(1) Figs{2,2}.Position(2) Figs{1,1}.Position(3) Figs{2,2}.Position(4)]);
-set(Figs{3,2},'Position',[Figs{3,2}.Position(1) Figs{3,2}.Position(2) Figs{1,1}.Position(3) Figs{3,2}.Position(4)]);
+Figs{3,2} = subplot(3,4,11);
+imagesc(FullImage.AS(plotRolArray,plotCowArray,2)',PlotFALim); title('Full RF Shimming','FontSize',FontSize);axis off;
+set(Figs{3,2},'Position',[Figs{3,2}.Position(1)-HoriOffset Figs{3,2}.Position(2) Figs{3,2}.Position(3) Figs{3,2}.Position(4)]);
 colormap(Figs{3,2},'hot')
 
 hp4 = get(Figs{3,2},'Position');
-h = colorbar('Position', [hp4(1)+hp4(3)+0.025  hp4(2)  0.025  0.815]);
-%label(h, 'foo');
-%set(get(h,'title'),'string','FA')
+colorbar('Position', [hp4(1)+hp4(3)+0.015  hp4(2)  0.02  0.815],'FontSize',FontSize);
+
+PlotDiffLim = [-20 20];
+Figs{1,3} = subplot(3,4,4);
+imagesc(DiffImage.CP(plotRolArray,plotCowArray,2)',PlotDiffLim); 
+title('CP Mode','FontSize',FontSize);axis off;
+%set(Figs{2,2},'Position',[Figs{2,2}.Position(1) Figs{2,2}.Position(2) Figs{1,1}.Position(3) Figs{2,2}.Position(4)]);
+colormap(Figs{1,3},'parula')
+
+Figs{2,3} = subplot(3,4,8);
+imagesc(DiffImage.PhaseOnly(plotRolArray,plotCowArray,2)',PlotDiffLim); 
+title('Phase Only','FontSize',FontSize);axis off;
+%set(Figs{3,2},'Position',[Figs{3,2}.Position(1) Figs{3,2}.Position(2) Figs{1,1}.Position(3) Figs{3,2}.Position(4)]);
+colormap(Figs{2,3},'parula')
+
+Figs{3,3} = subplot(3,4,12);
+imagesc(DiffImage.AS(plotRolArray,plotCowArray,2)',PlotDiffLim); 
+title('Full RF Shimming','FontSize',FontSize);axis off;
+%set(Figs{1,2},'Position',[Figs{1,2}.Position(1) Figs{1,2}.Position(2) Figs{1,1}.Position(3) Figs{1,2}.Position(4)]);
+colormap(Figs{3,3},'parula')
+
+hp4 = get(Figs{3,3},'Position');
+colorbar('Position', [hp4(1)+hp4(3)+0.015  hp4(2)  0.02  0.815],'FontSize',FontSize);
+%%
+ b1map = ptxFMObj.getB1PerV('Hz','NaN');
+ b1mapCP = squeeze(sum(b1map,4));
+ figure(54);imagesc(abs(b1map(:,:,11)))
+ colorbar
