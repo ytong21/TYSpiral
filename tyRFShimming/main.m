@@ -12,7 +12,7 @@
     %%  Specifying parameters
     param.targetFlipAngle = 20;
     param.numCh = 8;
-    param.TR = 1.5e-3;% sec
+    param.TR = 1e-3;% sec
     param.CGtikhonov = 1e-6;
     param.tol = 1e-5;
     param.MaxEvaluation = 25000;
@@ -50,14 +50,14 @@
     disp('Complete')
     %%  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
-    tikhonovArray = power(10,-8:-1);
+    tikhonovArray = power(10,-6:-1);
     bVE = zeros(8,numel(tikhonovArray));
     for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
         [bVE(:,iDx),NRMSETmp,~,~] = runVE(AFull,param,maskedMaps);
         disp(NRMSETmp)
     end
-    disp('Variable-exchange optimization complete')
+    disp('Complete')
     %%  Running RF shimming Step 2: Active-set method
     disp('Running RF shimming active-set optimization...')
     bAS = zeros(16,numel(tikhonovArray));
@@ -69,7 +69,7 @@
         [bAS(:,iDx),NRMSE(iDx),exitflag(iDx),output{iDx}] = runAS(bVE(:,iDx),RFStruct,maskedMaps,param,AFull);
     end
     [~, minIndex] = min(NRMSE);
-    disp('Active-set optimization complete')
+    disp('Complete')
     
     %%  Bloch Simulation
     disp('Running Bloch simulation...')
@@ -129,26 +129,6 @@
       plotCowArray = cow(1):cow(end);     
   end
   PlotFALim = [15 25];   
-  figure(57);
-  subplot(1,3,1);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
-  subplot(1,3,2);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
-  subplot(1,3,3);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
-   
-  figure(58)
-  subplot(1,3,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
-  subplot(1,3,2);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
-  subplot(1,3,3);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
-  
-  figure(59)
-  subplot(1,3,1);imagesc(abs(mCP(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
-  subplot(1,3,2);imagesc(abs(mCP(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
-  subplot(1,3,3);imagesc(abs(mCP(plotRolArray,plotCowArray,SliceIdx+1)),PlotFALim);title(sprintf('Slice %d',SliceIdx+1));colorbar
-  
-  figure(60)
-  subplot(1,2,1);imagesc(abs(m(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title('Central slice');colorbar
-  error = mBloch - param.targetFlipAngle*abs(maskedMaps.mask);
-  subplot(1,2,2);imagesc(abs(error(plotRolArray,plotCowArray,SliceIdx)),[0 2]);
-  title('Central Slice Error');colorbar
 
 %%
  b1map = ptxFMObj.getB1PerV('Hz','NaN');
@@ -160,13 +140,15 @@
 figure(90)
 clf
 
-subplot(1,4,1)
-imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)); title('TOF');axis off;
-subplot(1,4,2)
-imagesc(FullImage.AS(plotRolArray,plotCowArray,2),PlotFALim); title('Full RF Shimming');axis off;
-subplot(1,4,3)
-imagesc(FullImage.CP(plotRolArray,plotCowArray,2),PlotFALim); title('CP Mode');axis off;
-subplot(1,4,4)
-imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2),PlotFALim); title('Phase Only');axis off;
-hp4 = get(subplot(1,4,4),'Position');
-colorbar('Position', [hp4(1)+hp4(3)+0.02  hp4(2)  0.04  hp4(4)])
+subplot(4,1,1)
+imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF');axis off;
+subplot(4,1,2)
+imagesc(FullImage.AS(plotRolArray,plotCowArray,2)',PlotFALim); title('Full RF Shimming');axis off;
+subplot(4,1,3)
+imagesc(FullImage.CP(plotRolArray,plotCowArray,2)',PlotFALim); title('CP Mode');axis off;
+subplot(4,1,4)
+imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2)',PlotFALim); title('Phase Only');axis off;
+hp4 = get(subplot(4,1,4),'Position');
+h = colorbar('Position', [hp4(1)+hp4(3)+0.02  hp4(2)  0.025  0.596]);
+%label(h, 'foo');
+set(get(h,'title'),'string','FA');
