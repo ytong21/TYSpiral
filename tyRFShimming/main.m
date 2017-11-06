@@ -24,8 +24,12 @@
     maskedMaps.posVox = ptxFMObj.getPositions('cm','delete').';
     maskedMaps.localiser = ptxFMObj.getLoc('none');
     maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
-    
     maskedMaps.mask = ptxFMObj.getMask();
+    
+    ImgToPlot.b0 = ptxFMObj.getB0('Hz','none');
+    ImgToPlot.b1 = ptxFMObj.getB1('Hz','none');
+    ImgToPlot.b1CP = abs(sum(ImgToPlot.b1,4));    
+
     RFStruct = tyMakeHanning(600,5);
     %%  Constructing system matrix
     disp('Calculating system matrix...');
@@ -139,16 +143,48 @@
 %% Other plots
 figure(90)
 clf
+Figs = cell(3,2);
+Figs{2,1} = subplot(3,2,3);
+imagesc(ImgToPlot.b1CP(plotRolArray,plotCowArray,SliceIdx)'); title('B1 Map');axis off;colorbar;hold on;
+colormap(Figs{2,1},'gray')
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
 
-subplot(4,1,1)
-imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF');axis off;
-subplot(4,1,2)
+Figs{3,1} = subplot(3,2,5); 
+imagesc(ImgToPlot.b0(plotRolArray,plotCowArray,SliceIdx)'); title('B0 Map');axis off;hold on;colorbar
+colormap(Figs{3,1},'gray')
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+
+Figs{1,1} = subplot(3,2,1); 
+imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF');axis off;colormap(Figs{1,1},'gray')
+hold on
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+hp3 = get(subplot(3,2,1),'Position');
+set(Figs{1,1},'Position',[hp3(1) hp3(2) Figs{3,1}.Position(3) hp3(4)]);
+%imagesc(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)');title('TOF');axis off;
+
+%hh = figure(91);
+
+Figs{1,2} = subplot(3,2,2);
 imagesc(FullImage.AS(plotRolArray,plotCowArray,2)',PlotFALim); title('Full RF Shimming');axis off;
-subplot(4,1,3)
+set(Figs{1,2},'Position',[Figs{1,2}.Position(1) Figs{1,2}.Position(2) Figs{1,1}.Position(3) Figs{1,2}.Position(4)]);
+colormap(Figs{1,2},'hot')
+
+Figs{2,2} = subplot(3,2,4);
 imagesc(FullImage.CP(plotRolArray,plotCowArray,2)',PlotFALim); title('CP Mode');axis off;
-subplot(4,1,4)
+set(Figs{2,2},'Position',[Figs{2,2}.Position(1) Figs{2,2}.Position(2) Figs{1,1}.Position(3) Figs{2,2}.Position(4)]);
+colormap(Figs{2,2},'hot')
+
+Figs{3,2} = subplot(3,2,6);
 imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2)',PlotFALim); title('Phase Only');axis off;
-hp4 = get(subplot(4,1,4),'Position');
-h = colorbar('Position', [hp4(1)+hp4(3)+0.02  hp4(2)  0.025  0.596]);
+
+%set(Figs{2,2},'Position',[Figs{2,2}.Position(1) Figs{2,2}.Position(2) Figs{1,1}.Position(3) Figs{2,2}.Position(4)]);
+set(Figs{3,2},'Position',[Figs{3,2}.Position(1) Figs{3,2}.Position(2) Figs{1,1}.Position(3) Figs{3,2}.Position(4)]);
+colormap(Figs{3,2},'hot')
+
+hp4 = get(Figs{3,2},'Position');
+h = colorbar('Position', [hp4(1)+hp4(3)+0.025  hp4(2)  0.025  0.815]);
 %label(h, 'foo');
-set(get(h,'title'),'string','FA');
+%set(get(h,'title'),'string','FA')
