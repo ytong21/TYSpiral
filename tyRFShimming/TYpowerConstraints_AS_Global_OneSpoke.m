@@ -44,12 +44,12 @@ ceq = [];
     AvgPowerPerTR = PowerIntPerSpoke/pulseTR;
     %VoltsPerSpoke = sum(abs(RF_pulse))*(10e-6);  % s   tyMakeSinc has a 10us raster
     %PowerPerTR = (WTCpower(RFAmp)).*VoltsPerSpoke;    %W per TR
-    RelaxFactor = 3;
-    cAvgPwrPerChan10s = AvgPowerPerTR/RelaxFactor - currentConstraints.flPTxCoilPerChAvPwrLimit_10s;
-    cAvgPwrPerChan6min = AvgPowerPerTR/RelaxFactor - currentConstraints.flPTxCoilPerChAvPwrLimit_LT;
+    RelaxFactor = 2;
+    cAvgPwrPerChan10s = AvgPowerPerTR/RelaxFactor - currentConstraints.ChannelAvPwrLimit_10sec;
+    cAvgPwrPerChan6min = AvgPowerPerTR/RelaxFactor - currentConstraints.ChannelAvPwrLimit_6min;
     SumPwrPerTR = sum(AvgPowerPerTR,1);    %W per TR
-    cSumPwrPerTR10s = SumPwrPerTR/RelaxFactor - currentConstraints.flPTxCoilSumAvPwrLimit_10s; 
-    cSumPwrPerTR6min = SumPwrPerTR/RelaxFactor - currentConstraints.flPTxCoilSumAvPwrLimit_LT; 
+    cSumPwrPerTR10s = SumPwrPerTR/RelaxFactor - currentConstraints.SumAvPwrLimit_10sec; 
+    cSumPwrPerTR6min = SumPwrPerTR/RelaxFactor - currentConstraints.SumAvPwrLimit_6min; 
  
  c = [cPeakPwrPerChan; cAvgPwrPerChan10s; cAvgPwrPerChan6min; cSumPwrPerTR10s; cSumPwrPerTR6min];
 
