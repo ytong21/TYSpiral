@@ -90,7 +90,8 @@
         [bPhaseTmp, ErrorOut] = runPhaseOnly(AFull,param,RFStruct);
     toc
     [~, minPhaseIndex] = min(ErrorOut);
-    %%
+    %[~, maxPhaseIndex] = max(ErrorOut);    
+    
     bPhase = bPhaseTmp(1,minPhaseIndex)*exp(1i*bPhaseTmp(2:9,minPhaseIndex));
     
     %%  Calculate magnetization and NRMSE
@@ -127,7 +128,7 @@
       plotRolArray = rol(1):rol(end);
       plotCowArray = cow(1):cow(end);     
   end
-  PlotFALim = [10 25];   
+  PlotFALim = [15 25];   
   figure(57);
   subplot(1,3,1);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx-1)),PlotFALim);title(sprintf('Slice %d',SliceIdx-1));colorbar
   subplot(1,3,2);imagesc(abs(mBloch(plotRolArray,plotCowArray,SliceIdx)),PlotFALim);title(sprintf('Slice %d',SliceIdx));colorbar 
@@ -157,9 +158,15 @@
  
 %% Other plots
 figure(90)
-subplot(1,3,1)
-imagesc(FullImage.AS(plotRolArray,plotCowArray,2),PlotFALim); title('Full RF Shimming');colorbar
-subplot(1,3,2)
-imagesc(FullImage.CP(plotRolArray,plotCowArray,2),PlotFALim); title('CP Mode');colorbar
-subplot(1,3,3)
-imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2),PlotFALim); title('Phase Only');colorbar
+clf
+
+subplot(1,4,1)
+imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)); title('TOF');axis off;
+subplot(1,4,2)
+imagesc(FullImage.AS(plotRolArray,plotCowArray,2),PlotFALim); title('Full RF Shimming');axis off;
+subplot(1,4,3)
+imagesc(FullImage.CP(plotRolArray,plotCowArray,2),PlotFALim); title('CP Mode');axis off;
+subplot(1,4,4)
+imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2),PlotFALim); title('Phase Only');axis off;
+hp4 = get(subplot(1,4,4),'Position');
+colorbar('Position', [hp4(1)+hp4(3)+0.02  hp4(2)  0.04  hp4(4)])
