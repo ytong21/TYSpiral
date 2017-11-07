@@ -93,11 +93,8 @@
     tic
         [bPhaseTmp, ErrorOut] = runPhaseOnly(AFull,param,RFStruct);
     toc
-    [~, minPhaseIndex] = min(ErrorOut);
-    %[~, maxPhaseIndex] = max(ErrorOut);    
-    
+    [~, minPhaseIndex] = min(ErrorOut); 
     bPhase = bPhaseTmp(1,minPhaseIndex)*exp(1i*bPhaseTmp(2:9,minPhaseIndex));
-    
     %%  Calculate magnetization and NRMSE
   rmse = @(x,xref) sqrt(immse(x,xref));
   nrmse = @(x,xref) rmse(x,xref)/mean(x);
@@ -146,7 +143,18 @@
       end
   end
   RFAmp.Full = max(abs(bmin));   RFAmp.CP = max(abs(bCP));    RFAmp.PhaseOnly = max(abs(bPhase));
-  RFShimWrite(ToWrite.Full);
+  PulseToWrite = 'Full';
+  switch PulseToWrite
+      case 'Full'
+        RFShimWrite(ToWrite.Full);
+        fprintf('The max voltage is %f Volts.\n',RFAmp.Full);
+      case 'CP'
+        RFShimWrite(ToWrite.CP);
+        fprintf('The max voltage is %f Volts.\n',RFAmp.CP);
+      case 'PhaseOnly'
+        RFShimWrite(ToWrite.PhaseOnly); 
+        fprintf('The max voltage is %f Volts.\n',RFAmp.PhaseOnly);
+  end
 %%
 runPlot;
 %%
