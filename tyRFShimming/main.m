@@ -128,6 +128,30 @@
   Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
   
+  %%    Finding four vessels
+  figure(95)
+  % VesselMask(1) = RICA    VesselMask(2) = RVA
+  % VesselMask(3) = LICA    VesselMask(2) = LVA  
+ 
+  imagesc(maskedMaps.localiser(:,:,SliceIdx));hold on
+  visboundaries(maskedMaps.mask(:,:,SliceIdx),'Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+  VesselMask = cell(4,1);
+  hTmp = imrect;  
+  VesselMask{1} = logical(createMask(hTmp));     VesselMask{1} = (VesselMask{1}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  hTmp = imrect;  %wait(h2plot);
+  VesselMask{2} = logical(createMask(hTmp));    VesselMask{2} = (VesselMask{2}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  hTmp = imrect;  %wait(h2plot);
+  VesselMask{3} = logical(createMask(hTmp));    VesselMask{3} = (VesselMask{3}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  hTmp = imrect;  %wait(h2plot);
+  VesselMask{4} = logical(createMask(hTmp));    VesselMask{4} = (VesselMask{4}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  close(95)
+  figure(96)
+  for iDx = 1:numel(VesselMask)
+    imagesc(VesselMask{iDx}); drawnow;
+    pause(1.5)
+  end
+  close(96)
   %%    Calculate labelling efficiency 
   %EffArray = LabelEff(15:0.05:25,RFStruct);
   [Efficiency,FinalMag] = LabelEff(15:0.05:25,RFStruct);
