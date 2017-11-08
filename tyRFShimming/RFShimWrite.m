@@ -1,13 +1,7 @@
 function RFShimWrite(RFToWrite)
 %Write the file
 
-fID = fopen('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTxArbitrary.ini','w');
-if isdir('/Volumes/Disk_C')
-    copyfile('/Users/wclarke/Documents/VMShared/pTXArbitrary.ini?,?/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTXArbitrary.ini')
-end
-if isdir('/Volumes/Disk_C-1')
-    copyfile('/Users/wclarke/Documents/VMShared/pTXArbitrary.ini?,?/Volumes/Disk_C-1/MedCom/MriCustomer/seq/RFPulses/pTXArbitrary.ini')
-end
+fID = fopen('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTxVEPCASLShim.ini','w');
 fprintf(fID,'# Created in run_STA_KTPdesign.m \n');
 fprintf(fID,'[pTXPulse]\n');
 fprintf(fID,'\n');

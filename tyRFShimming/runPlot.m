@@ -104,3 +104,35 @@ CLB{7}.YLabel.String = 'Percentage error (%)';    CLB{7}.YLabel.Rotation = 0;
 
 hp4 = get(Figs{3,3},'Position');
 %colorbar('Position', [hp4(1)+hp4(3)+0.015  hp4(2)  0.02  0.815],'FontSize',FontSize);
+
+
+%%
+TOF = figure(91);
+imagesc(maskedMaps.localiser(:,:,12)');colormap(TOF,'gray');axis off
+% hold on
+% visboundaries(maskedMaps.mask(:,:,12)','Color','r','LineWidth',0.4,...
+%     'EnhanceVisibility', true);axis off;
+% Anno = cell(4,1);
+% Anno{1,1} = annotation('textarrow',[38 175]/10,[92 199]/10,'String','RICA');
+
+%%
+figure(92)
+Histo = cell(3,1);
+[f1,xi] = ksdensity(abs(FAFinal.AS),linspace(15,25,500));
+plot(xi,f1,'b');hold on
+[f1,xi] = ksdensity(abs(FAFinal.CP),linspace(15,25,500));
+plot(xi,f1,'r');
+[f1,xi] = ksdensity(abs(FAFinal.PhaseOnly),linspace(15,25,500));
+plot(xi,f1,'m');
+%%
+figure(93)
+%histogram(abs(FAFinal.AS),20,'Normalization','probability');hold on;
+%[f1,xi] = ksdensity(abs(FAFinal.AS),linspace(17,22,100));
+%plot(xi,f1,'b');
+
+Histo{2,1} = histfit(abs(FAFinal.CP),10,'kernel');  delete(Histo{2,1}(1));  Histo{2,1}(2).Color = 'c';  hold on
+Histo{3,1} = histfit(abs(FAFinal.PhaseOnly),10,'kernel');  delete(Histo{3,1}(1));  Histo{3,1}(2).Color = 'b';
+Histo{1,1} = histfit(abs(FAFinal.AS),10,'kernel');  delete(Histo{1,1}(1));  Histo{1,1}(2).Color = 'r'; 
+xlabel('Flip angle (°)')
+ylabel('Distribution (# of voxels)')
+legend('CP mode','Phase only shimming','Full RF shimming');

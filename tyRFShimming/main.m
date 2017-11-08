@@ -1,13 +1,13 @@
     %%   Loading the data and masking
     addpath('/Users/ytong/Documents/MATLAB/For_James_Larkin');
-    pTxPath = '/Users/ytong/Documents/MATLAB/Temp/20171013_F7T_2013_40_387';
+    pTxPath = '/Volumes/DICOM/2017-11/20171107_F7T_2013_50_083';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
-    ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_150VRef__B1',...
+    ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_100VRef__B1',...
         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','fl_tof');
     %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
     SliceIdx = input('Please enter the slice number: \n');
     ptxFMObj.interpolateTo('Localiser');
-    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x,10),true);  
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x,SliceIdx),true);  
     %ptxFMObj.setSlice(10);
     %%  Specifying parameters
     param.targetFlipAngle = 20;
@@ -155,6 +155,13 @@
         RFShimWrite(ToWrite.PhaseOnly); 
         fprintf('The max voltage is %f Volts.\n',RFAmp.PhaseOnly);
   end
+if isdir('/Volumes/Disk_C')
+    copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini?,?/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
+end
+if isdir('/Volumes/Disk_C-1')
+    copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini?,?/Volumes/Disk_C-1/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
+end
+
 %%
 runPlot;
 %%
