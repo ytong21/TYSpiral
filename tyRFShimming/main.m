@@ -1,6 +1,7 @@
     %%   Loading the data and masking
     addpath('/Users/ytong/Documents/MATLAB/For_James_Larkin');
-    pTxPath = '/Volumes/DICOM/2017-11/20171107_F7T_2013_50_083';
+    cd('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/')
+    pTxPath = '/Volumes/Data/DICOM/2017-11/20171107_F7T_2013_50_083';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_100VRef__B1',...
         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','fl_tof');
@@ -127,6 +128,9 @@
   Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
   
+  %%    Calculate labelling efficiency 
+  %EffArray = LabelEff(15:0.05:25,RFStruct);
+  [Efficiency,FinalMag] = LabelEff(15:0.05:25,RFStruct);
   %%    Write RF pulse into file.
   makeRFToWrite = @(b) [abs(b)/max(abs(b)), angle(b)];
 

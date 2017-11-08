@@ -126,13 +126,24 @@ plot(xi,f1,'r');
 plot(xi,f1,'m');
 %%
 figure(93)
+
+set(gcf,'color','w','InvertHardcopy','off')
+set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
 %histogram(abs(FAFinal.AS),20,'Normalization','probability');hold on;
 %[f1,xi] = ksdensity(abs(FAFinal.AS),linspace(17,22,100));
 %plot(xi,f1,'b');
 
-Histo{2,1} = histfit(abs(FAFinal.CP),10,'kernel');  delete(Histo{2,1}(1));  Histo{2,1}(2).Color = 'c';  hold on
-Histo{3,1} = histfit(abs(FAFinal.PhaseOnly),10,'kernel');  delete(Histo{3,1}(1));  Histo{3,1}(2).Color = 'b';
-Histo{1,1} = histfit(abs(FAFinal.AS),10,'kernel');  delete(Histo{1,1}(1));  Histo{1,1}(2).Color = 'r'; 
+% Histo{2,1} = histfit(abs(FAFinal.CP),10,'kernel'); delete(Histo{2,1}(1));  Histo{2,1}(2).Color = 'c';  hold on
+% Histo{3,1} = histfit(abs(FAFinal.PhaseOnly),10,'kernel');  delete(Histo{3,1}(1));  Histo{3,1}(2).Color = 'b';
+% Histo{1,1} = histfit(abs(FAFinal.AS),10,'kernel');  delete(Histo{1,1}(1));  Histo{1,1}(2).Color = 'r'; 
+
+edges = 16:0.1:24;
+
+Histo{1,1} = histogram(abs(FAFinal.CP),edges);    Histo{1,1}.Normalization = 'probability'; hold on
+Histo{2,1} = histogram(abs(FAFinal.PhaseOnly),edges);    Histo{2,1}.Normalization = 'probability';
+Histo{3,1} = histogram(abs(FAFinal.AS),edges);    Histo{3,1}.Normalization = 'probability';
+box off
 xlabel('Flip angle (°)')
-ylabel('Distribution (# of voxels)')
-legend('CP mode','Phase only shimming','Full RF shimming');
+ylabel('Probability')
+lgd = legend('CP mode','Phase only shimming','Full RF shimming');
+lgd.FontSize = 14;
