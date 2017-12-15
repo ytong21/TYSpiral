@@ -11,8 +11,14 @@
     %%
     ptxFMObj.createMask(@(x) DicomFM.maskFunctions.VEellipseMask(x,SliceIdx,[1 0 0 0]),true);  
     %ptxFMObj.setSlice(10);
-    load Target.mat
-    load TargetMasked.mat
+    load Vessel.mat
+    
+  figure(96)
+  for iDx = 1:numel(VesselMask)
+    imagesc(VesselMask{iDx}); drawnow;
+    pause(1)
+  end
+  close(96)
     %%  Specifying parameters
     param.targetFlipAngle = 20;
     param.numCh = 8;
@@ -29,7 +35,7 @@
     maskedMaps.localiser = ptxFMObj.getLoc('none');
     maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
     maskedMaps.mask = ptxFMObj.getMask();
-    maskedMaps.TargetMasked = TargetMasked;
+    maskedMaps.TargetMasked = Vessel.TargetMasked;
     
     ImgToPlot.b0 = ptxFMObj.getB0('Hz','none');
     ImgToPlot.b1 = ptxFMObj.getB1('Hz','none');
@@ -100,30 +106,8 @@
     toc
     [~, minPhaseIndex] = min(ErrorOut); 
     bPhase = bPhaseTmp(1,minPhaseIndex)*exp(1i*bPhaseTmp(2:9,minPhaseIndex));
-      %%    Finding four vessels
-  figure(95)
-  % VesselMask(1) = RICA    VesselMask(2) = RVA
-  % VesselMask(3) = LICA    VesselMask(2) = LVA  
- 
-  imagesc(maskedMaps.localiser(:,:,SliceIdx));hold on
-  visboundaries(maskedMaps.mask(:,:,SliceIdx),'Color','r','LineWidth',0.4,...
-    'EnhanceVisibility', true,'LineStyle','-');axis off;
-  VesselMask = cell(4,1);
-  hTmp = imrect;  
-  VesselMask{1} = logical(createMask(hTmp));     VesselMask{1} = (VesselMask{1}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  hTmp = imrect;  %wait(h2plot);
-  VesselMask{2} = logical(createMask(hTmp));    VesselMask{2} = (VesselMask{2}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  hTmp = imrect;  %wait(h2plot);
-  VesselMask{3} = logical(createMask(hTmp));    VesselMask{3} = (VesselMask{3}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  hTmp = imrect;  %wait(h2plot);
-  VesselMask{4} = logical(createMask(hTmp));    VesselMask{4} = (VesselMask{4}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  close(95)
-  figure(96)
-  for iDx = 1:numel(VesselMask)
-    imagesc(VesselMask{iDx}); drawnow;
-    pause(1.5)
-  end
-  close(96)
+
+
     %%  Calculate magnetization and NRMSE
   rmse = @(x,xref) sqrt(immse(x,xref));
   nrmse = @(x,xref) rmse(x,xref)/mean(x);
