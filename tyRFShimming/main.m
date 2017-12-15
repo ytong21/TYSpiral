@@ -8,8 +8,11 @@
     %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
     SliceIdx = input('Please enter the slice number: \n');
     ptxFMObj.interpolateTo('Localiser');
-    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.ellipseMask(x,SliceIdx),true);  
+    %%
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.VEellipseMask(x,SliceIdx,[1 0 0 0]),true);  
     %ptxFMObj.setSlice(10);
+    load Target.mat
+    load TargetMasked.mat
     %%  Specifying parameters
     param.targetFlipAngle = 20;
     param.numCh = 8;
@@ -26,6 +29,7 @@
     maskedMaps.localiser = ptxFMObj.getLoc('none');
     maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
     maskedMaps.mask = ptxFMObj.getMask();
+    maskedMaps.TargetMasked = TargetMasked;
     
     ImgToPlot.b0 = ptxFMObj.getB0('Hz','none');
     ImgToPlot.b1 = ptxFMObj.getB1('Hz','none');
@@ -96,6 +100,30 @@
     toc
     [~, minPhaseIndex] = min(ErrorOut); 
     bPhase = bPhaseTmp(1,minPhaseIndex)*exp(1i*bPhaseTmp(2:9,minPhaseIndex));
+      %%    Finding four vessels
+  figure(95)
+  % VesselMask(1) = RICA    VesselMask(2) = RVA
+  % VesselMask(3) = LICA    VesselMask(2) = LVA  
+ 
+  imagesc(maskedMaps.localiser(:,:,SliceIdx));hold on
+  visboundaries(maskedMaps.mask(:,:,SliceIdx),'Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+  VesselMask = cell(4,1);
+  hTmp = imrect;  
+  VesselMask{1} = logical(createMask(hTmp));     VesselMask{1} = (VesselMask{1}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  hTmp = imrect;  %wait(h2plot);
+  VesselMask{2} = logical(createMask(hTmp));    VesselMask{2} = (VesselMask{2}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  hTmp = imrect;  %wait(h2plot);
+  VesselMask{3} = logical(createMask(hTmp));    VesselMask{3} = (VesselMask{3}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  hTmp = imrect;  %wait(h2plot);
+  VesselMask{4} = logical(createMask(hTmp));    VesselMask{4} = (VesselMask{4}+maskedMaps.mask(:,:,SliceIdx)) > 1;
+  close(95)
+  figure(96)
+  for iDx = 1:numel(VesselMask)
+    imagesc(VesselMask{iDx}); drawnow;
+    pause(1.5)
+  end
+  close(96)
     %%  Calculate magnetization and NRMSE
   rmse = @(x,xref) sqrt(immse(x,xref));
   nrmse = @(x,xref) rmse(x,xref)/mean(x);
@@ -127,34 +155,30 @@
   Error.CP = nrmse(abs(FAFinal.CP),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
-  
-  %%    Finding four vessels
-  figure(95)
-  % VesselMask(1) = RICA    VesselMask(2) = RVA
-  % VesselMask(3) = LICA    VesselMask(2) = LVA  
- 
-  imagesc(maskedMaps.localiser(:,:,SliceIdx));hold on
-  visboundaries(maskedMaps.mask(:,:,SliceIdx),'Color','r','LineWidth',0.4,...
-    'EnhanceVisibility', true,'LineStyle','-');axis off;
-  VesselMask = cell(4,1);
-  hTmp = imrect;  
-  VesselMask{1} = logical(createMask(hTmp));     VesselMask{1} = (VesselMask{1}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  hTmp = imrect;  %wait(h2plot);
-  VesselMask{2} = logical(createMask(hTmp));    VesselMask{2} = (VesselMask{2}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  hTmp = imrect;  %wait(h2plot);
-  VesselMask{3} = logical(createMask(hTmp));    VesselMask{3} = (VesselMask{3}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  hTmp = imrect;  %wait(h2plot);
-  VesselMask{4} = logical(createMask(hTmp));    VesselMask{4} = (VesselMask{4}+maskedMaps.mask(:,:,SliceIdx)) > 1;
-  close(95)
-  figure(96)
-  for iDx = 1:numel(VesselMask)
-    imagesc(VesselMask{iDx}); drawnow;
-    pause(1.5)
-  end
-  close(96)
+  %%
+  OneSlice.CP = FullImage.CP(:,:,2);      OneSlice.PhaseOnly = FullImage.PhaseOnly(:,:,2);  OneSlice.Full = FullImage.AS(:,:,2);
+  RICA{1} = OneSlice.CP(VesselMask{1});   RICA{2} = OneSlice.PhaseOnly(VesselMask{1});  RICA{3} = OneSlice.Full(VesselMask{1});
+  RVA{1} = OneSlice.CP(VesselMask{2});   RVA{2} = OneSlice.PhaseOnly(VesselMask{2});  RVA{3} = OneSlice.Full(VesselMask{2});
+  LICA{1} = OneSlice.CP(VesselMask{3});   LICA{2} = OneSlice.PhaseOnly(VesselMask{3});  LICA{3} = OneSlice.Full(VesselMask{3});
+  LVA{1} = OneSlice.CP(VesselMask{4});   LVA{2} = OneSlice.PhaseOnly(VesselMask{4});  LVA{3} = OneSlice.Full(VesselMask{4});
+  Full{1} = abs(FAFinal.CP);       Full{2} = abs(FAFinal.PhaseOnly);  Full{3} = abs(FAFinal.AS);
   %%    Calculate labelling efficiency 
   %EffArray = LabelEff(15:0.05:25,RFStruct);
-  [Efficiency,FinalMag] = LabelEff(15:0.05:25,RFStruct);
+  if ~exist('Efficiency','var')
+    [Efficiency,FinalMag] = LabelEff(15:0.05:25,RFStruct);
+  end
+  BarMtx = zeros(3,5); StdMtx= zeros(3,5); FAToSim = 15:0.05:25;
+  CalcEff = @(x) mean(interp1(FAToSim,Efficiency,x));
+  getStd = @(x) std(interp1(FAToSim,Efficiency,x));
+  for iDx = 1:numel(RICA)
+      BarMtx(iDx,1) = CalcEff(RICA{iDx});    BarMtx(iDx,2) = CalcEff(RVA{iDx});   BarMtx(iDx,3) = CalcEff(LICA{iDx});  
+      BarMtx(iDx,4) = CalcEff(LVA{iDx});   BarMtx(iDx,5) = CalcEff(Full{iDx});
+      StdMtx(iDx,1) = getStd(RICA{iDx});      StdMtx(iDx,2) = getStd(RVA{iDx});   StdMtx(iDx,3) = getStd(LICA{iDx});
+      StdMtx(iDx,4) = getStd(LVA{iDx});      StdMtx(iDx,5) = getStd(Full{iDx});
+      
+  end
+  BarMtx = BarMtx'; StdMtx = StdMtx';
+
   %%    Write RF pulse into file.
   makeRFToWrite = @(b) [abs(b)/max(abs(b)), angle(b)];
 
@@ -184,10 +208,10 @@
         fprintf('The max voltage is %f Volts.\n',RFAmp.PhaseOnly);
   end
 if isdir('/Volumes/Disk_C')
-    copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini?,?/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
+    copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini','/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
 end
 if isdir('/Volumes/Disk_C-1')
-    copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini?,?/Volumes/Disk_C-1/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
+    copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini','/Volumes/Disk_C-1/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
 end
 
 %%
@@ -197,3 +221,4 @@ runPlot;
  b1mapCP = squeeze(sum(b1map,4));
  figure(54);imagesc(abs(b1map(:,:,11)))
  colorbar
+ 
