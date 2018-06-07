@@ -10,18 +10,19 @@
       plotCowArray = cow(1):cow(end);     
   end
  % Other plots
+ %%
 figure(90)
 set(gcf,'color','w','InvertHardcopy','off')
 set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
 clf
-PlotFALim = [10 30]; FontSize = 9;   CLB = cell(7,1);   CLBFontSize = 8;
+PlotFALim = [0 20]; FontSize = 9;   CLB = cell(7,1);   CLBFontSize = 8;
 Figs = cell(4,3);
 
 Figs{2,1} = subplot(3,2,3);
-imagesc(ImgToPlot.b1CP(plotRolArray,plotCowArray,SliceIdx)'); title('B1 Map','FontSize',FontSize);axis off;
+imagesc(ImgToPlot.b1CP(plotRolArray,plotCowArray,SliceIdx)'); title('DREAM B1 Map','FontSize',FontSize);axis off;
 CLB{1} = colorbar('FontSize',CLBFontSize);
-CLB{1}.YLabel.String = 'Hz';    CLB{1}.YLabel.Rotation = 0;     
-CLB{1}.YLabel.Position = [0.5 280 0];
+CLB{1}.YLabel.String = 'Hz/V';    CLB{1}.YLabel.Rotation = 0;     
+CLB{1}.YLabel.Position = [0.5 4.2 0];
 hold on;colormap(Figs{2,1},'gray')
 visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
     'EnhanceVisibility', true,'LineStyle','-');axis off;
@@ -30,20 +31,23 @@ nudge(Figs{2,1},[0 0.05 0 0])
 Figs{3,1} = subplot(3,2,5); 
 imagesc(ImgToPlot.b0(plotRolArray,plotCowArray,SliceIdx)',[-200 200]); title('B0 Map','FontSize',FontSize);axis off;hold on;
 CLB{2} = colorbar('FontSize',CLBFontSize);
-CLB{2}.YLabel.String = 'Hz/V';    CLB{2}.YLabel.Rotation = 0;     
-CLB{2}.YLabel.Position = [0.5 700 0];
+CLB{2}.YLabel.String = 'Hz';    CLB{2}.YLabel.Rotation = 0;     
+%CLB{2}.YLabel.Position = [0 235 0];
+CLB{2}.YLabel.Position = [0.5 235 0];
 colormap(Figs{3,1},'gray')
 visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
     'EnhanceVisibility', true,'LineStyle','-');axis off;
 nudge(Figs{3,1},[0 0.1 0 0])
 
 Figs{1,1} = subplot(3,2,1); 
-imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF','FontSize',FontSize);axis off;colormap(Figs{1,1},'gray')
+imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); title('TOF image for vessel masking','FontSize',FontSize);axis off;colormap(Figs{1,1},'gray')
 hold on
 visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
     'EnhanceVisibility', true,'LineStyle','-');axis off;
 hp3 = get(subplot(3,2,1),'Position');
 set(Figs{1,1},'Position',[hp3(1) hp3(2) Figs{3,1}.Position(3) hp3(4)]);
+
+
 
 HoriOffset = 0.038;
 Figs{1,2} = subplot(3,4,3);
