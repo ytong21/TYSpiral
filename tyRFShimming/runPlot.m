@@ -114,11 +114,11 @@ hp4 = get(Figs{3,3},'Position');
 %%
 figure(92)
 Histo = cell(3,1);
-[f1,xi] = ksdensity(abs(FAFinal.AS),linspace(15,25,500));
+[f1,xi] = ksdensity(abs(FAFinal.AS),linspace(0,20,500));
 plot(xi,f1,'b');hold on
-[f1,xi] = ksdensity(abs(FAFinal.CP),linspace(15,25,500));
+[f1,xi] = ksdensity(abs(FAFinal.CP),linspace(0,20,500));
 plot(xi,f1,'r');
-[f1,xi] = ksdensity(abs(FAFinal.PhaseOnly),linspace(15,25,500));
+[f1,xi] = ksdensity(abs(FAFinal.PhaseOnly),linspace(0,20,500));
 plot(xi,f1,'m');
 %%
 figure(93)
@@ -133,14 +133,15 @@ set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters',
 % Histo{3,1} = histfit(abs(FAFinal.PhaseOnly),10,'kernel');  delete(Histo{3,1}(1));  Histo{3,1}(2).Color = 'b';
 % Histo{1,1} = histfit(abs(FAFinal.AS),10,'kernel');  delete(Histo{1,1}(1));  Histo{1,1}(2).Color = 'r'; 
 
-edges = 16:0.1:24;
+edges = 0:0.1:20;
 
 Histo{1,1} = histogram(abs(FAFinal.CP),edges,'FaceColor','b');    Histo{1,1}.Normalization = 'probability'; hold on
 Histo{2,1} = histogram(abs(FAFinal.PhaseOnly),edges,'FaceColor','g');    Histo{2,1}.Normalization = 'probability';
 Histo{3,1} = histogram(abs(FAFinal.AS),edges,'FaceColor','y');    Histo{3,1}.Normalization = 'probability';
 box off
 xlabel('Flip angle (°)')
-ylabel('Probability'); ylim([0 0.18])
+ylabel('Probability'); ylim([0 0.06])
+title('Flip angle achieved in all vessels');
 lgd = legend('CP mode','Phase only shimming','Full RF shimming');legend('boxoff')   
 lgd.FontSize = 13;set(gca, 'FontSize', 16)
 
@@ -148,7 +149,7 @@ lgd.FontSize = 13;set(gca, 'FontSize', 16)
   set(gcf,'color','w','InvertHardcopy','off')
   set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
   Mode = {'CP Mode','Phase only','Full RF shimming'};   VesselName = {'RICA','RVA','LICA','LVA','Total'};
-  BarChart = bar(1:5,BarMtx);  lgdTmp = legend(Mode); box off;  ylim([0.6 1]);  ylabel('Labelling efficiency');  
+  BarChart = bar(1:5,BarMtx);  lgdTmp = legend(Mode); box off;  ylim([0 0.8]);  ylabel('Labelling efficiency');  
   lgdTmp.FontSize = 13; set(gca,'XTickLabel',VesselName);set(gca, 'FontSize', 16);legend('boxoff')  
   %pause(0.1);
   hold on
@@ -157,6 +158,7 @@ lgd.FontSize = 13;set(gca, 'FontSize', 16)
     errorbar(xData,BarMtx(:,iDx),StdMtx(:,iDx),'r.')
   end
   BarChart(1).FaceColor = 'b'; BarChart(2).FaceColor = 'g'; BarChart(3).FaceColor = 'y';
+  title('Labeling efficienty achieved in each vessel')
   hold off
   
    %%
