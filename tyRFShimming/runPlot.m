@@ -5,9 +5,14 @@
       title('Select Rect Regions to Plot')
       h2plot = imrect;  wait(h2plot);
       plotMask = logical(createMask(h2plot));
-      [rol,cow] = find(plotMask);
-      plotRolArray = rol(1):rol(end);
-      plotCowArray = cow(1):cow(end);     
+      [row,col] = find(plotMask);
+      plotRolArray = row(1):row(end);
+      plotCowArray = col(1):col(end);
+      ToChop = 15;
+      %plotCowArrayReduced = [col(1):((col(1)+col(end))/2-ToChop) (ceil((col(1)+col(end))/2)+ToChop):col(end)];
+      plotRowArrayReduced = [row(1):(((row(1)+row(end))/2)-ToChop) (ceil((row(1)+row(end))/2)+ToChop):row(end)];
+      close(56)
+      
   end
  % Other plots
  %%
@@ -170,13 +175,14 @@ lgd.FontSize = 13;set(gca, 'FontSize', 16)
  %%
  figure(123)
 set(gcf,'color','w','InvertHardcopy','off')
-set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
-subplot(1,2,1)
+%set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
+ subplot(1,2,1)
  clf
  himpatch = Spectro.PlotCsi.impatch2d(imgObj.image,imgObj.info{1}.PixelSpacing);
  h = gca;
  h.YDir = 'reverse';
- 
+%
+
  % Draw sat band on the localiser image
 
 % Read RSat geometry from the protocol
@@ -364,7 +370,10 @@ end
         end
         
     end
-
+    
+ subTmp.Xlabel.YLabel.Visible = 'on';
+ subTmp.Xlabel.String = 'labeling plane and imaging region';
+%%
  TOF = subplot(1,2,2);
  imagesc(maskedMaps.localiser(:,:,12)');colormap(TOF,'gray');axis off
 % hold on
@@ -372,5 +381,5 @@ end
 %     'EnhanceVisibility', true);axis off;
 % Anno = cell(4,1);
 % Anno{1,1} = annotation('textarrow',[38 175]/10,[92 199]/10,'String','RICA');
-%%
+%
 Spectro.PlotCsi.impatch2d(ASLObj.image,ASLObj.info{1}.PixelSpacing)
