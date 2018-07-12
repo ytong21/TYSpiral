@@ -1,18 +1,31 @@
     %%   Loading the data and masking
     addpath('/Users/ytong/Documents/MATLAB/For_James_Larkin');
     cd('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/')
-    pTxPath = '/Volumes/Data/DICOM/2017-11/20171107_F7T_2013_50_083';
-    dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
-    ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_100VRef__B1',...
-        'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','fl_tof');
-    %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
-    SliceIdx = input('Please enter the slice number: \n');
-    ptxFMObj.interpolateTo('Localiser');
+    %pTxPath = '/Volumes/Data/DICOM/2018-06/20180601_F7T_2013_50_092';
+    %pTxPath = '/Users/ytong/Documents/Data/20180601_F7T_2013_50_092';
+    %pTxPath = '/Users/ytong/Documents/Data/20171107_F7T_2013_50_083';
+    pTxPath = '/Users/ytong/Documents/Data/20171107_F7T_2013_50_083';
+    %pTxPath = '/Users/ytong/Documents/MATLAB/Temp/20171013_F7T_2013_40_387';
+    %pTxPath = '/Users/ytong/Documents/Data/20180525_F7T_2013_50_091';
     %%
-    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.VEellipseMask(x,SliceIdx,[1 0 0 0]),true);  
-    %ptxFMObj.setSlice(10);
-    load Vessel.mat
+    dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
+    %
+    ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_150VRef_tagging__B1',...
+        'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','fl_tof','InterpTarget',...
+        'Localiser');
+    %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
     
+    SliceIdx = 10;%input('Please enter the slice number: \n');
+    
+    %ptxFMObj.interpolateTo('Localiser');
+    
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.VEellipseMask(x,SliceIdx,[1 1 1 1]),true);  
+    %ptxFMObj.setSlice(10);
+
+    
+    %RFFreqShift = @(RF,tVec,dfInRad) RF.*((1i)*dfInRad*tVec);
+    %% 
+    load Vessel.mat
   figure(96)
   for iDx = 1:numel(VesselMask)
     imagesc(VesselMask{iDx}); drawnow;
@@ -22,7 +35,7 @@
     %%  Specifying parameters
     param.targetFlipAngle = 20;
     param.numCh = 8;
-    param.TR = 1e-3;% sec
+    param.TR = 1.1e-3;% sec
     param.CGtikhonov = 1e-6;
     param.tol = 1e-5;
     param.MaxEvaluation = 25000;
@@ -37,11 +50,13 @@
     maskedMaps.mask = ptxFMObj.getMask();
     maskedMaps.TargetMasked = Vessel.TargetMasked;
     
+    
     ImgToPlot.b0 = ptxFMObj.getB0('Hz','none');
-    ImgToPlot.b1 = ptxFMObj.getB1('Hz','none');
+    ImgToPlot.b1 = ptxFMObj.getB1PerV('Hz','none');
     ImgToPlot.b1CP = abs(sum(ImgToPlot.b1,4));    
 
-    RFStruct = tyMakeHanning(600,5);
+    %RFStruct = tyMakeHanning(600,5);
+    RFStruct = tyMakeGaussian(750,4);
     %%  Constructing system matrix
     disp('Calculating system matrix...');
     SysMatMode = 'Full';
@@ -50,7 +65,7 @@
     elseif strcmp(SysMatMode,'Full');
         gr = zeros(numel(RFStruct.RF_pulse),3);
         rfOn = true(size(gr,1),1);
-        tp = 10E-6 * ones(size(rfOn));
+        tp = 10E-6 * ones(size(rfOn)); % in seconds
         DA = genAMatFull(tp,rfOn,gr,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
      %  To take the RF pulse shape into account. Construct a pseudo-diagonal matrix
@@ -63,18 +78,21 @@
         AFull = asin(AFullMag);   % rad/V  Dupas paper in rad/V
     end
     disp('Complete')
-    %%  Running RF shimming Step 1: Variable-exchange method
+    %  Running RF shimming Step 1: Variable-exchange method
     disp('Running RF shimming variable-exchange optimization...')
+    tic
     tikhonovArray = power(10,-6:-1);
     bVE = zeros(8,numel(tikhonovArray));
     for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
         [bVE(:,iDx),NRMSETmp,~,~] = runVE(AFull,param,maskedMaps);
-        disp(NRMSETmp)
+        disp(NRMSETmp)  
     end
+    toc
     disp('Complete')
-    %%  Running RF shimming Step 2: Active-set method
+    %  Running RF shimming Step 2: Active-set method
     disp('Running RF shimming active-set optimization...')
+    tic
     bAS = zeros(16,numel(tikhonovArray));
     NRMSE = zeros(size(tikhonovArray));
     output = cell(size(NRMSE));
@@ -84,6 +102,7 @@
         [bAS(:,iDx),NRMSE(iDx),exitflag(iDx),output{iDx}] = runAS(bVE(:,iDx),RFStruct,maskedMaps,param,AFull);
     end
     [~, minIndex] = min(NRMSE);
+    toc
     disp('Complete')
     
     %%  Bloch Simulation
@@ -98,9 +117,9 @@
         maskedMaps.b0MapMasked,GToSim,10E-6,maskedMaps.posVox,maskedMaps.mask);
     disp('Bloch simulation complete')
     
-    %%  Finding out what CP mode can do
+    %  Finding out what CP mode can do
     bCP = runCP(AFull,param,RFStruct);
-    %%  Running phase only optimization
+    %  Running phase only optimization
     tic
         [bPhaseTmp, ErrorOut] = runPhaseOnly(AFull,param,RFStruct);
     toc
@@ -108,7 +127,7 @@
     bPhase = bPhaseTmp(1,minPhaseIndex)*exp(1i*bPhaseTmp(2:9,minPhaseIndex));
 
 
-    %%  Calculate magnetization and NRMSE
+    %  Calculate magnetization and NRMSE
   rmse = @(x,xref) sqrt(immse(x,xref));
   nrmse = @(x,xref) rmse(x,xref)/mean(x);
   % FA results in degrees in a masked vector form.
@@ -116,8 +135,9 @@
   FAFinal.CP = rad2deg(AFull*bCP);
   FAFinal.AS = rad2deg(AFull*bmin);
   FAFinal.PhaseOnly = rad2deg(AFull*bPhase);
-  
+
   FullImage = struct;
+  %
   JawSlicesMask = maskedMaps.mask(:,:,SliceIdx-1:SliceIdx+1);
   FullImage.CP = zeros(size(JawSlicesMask));
   FullImage.CP(JawSlicesMask) = abs(FAFinal.CP);
@@ -139,7 +159,7 @@
   Error.CP = nrmse(abs(FAFinal.CP),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
-  %%
+
   OneSlice.CP = FullImage.CP(:,:,2);      OneSlice.PhaseOnly = FullImage.PhaseOnly(:,:,2);  OneSlice.Full = FullImage.AS(:,:,2);
   RICA{1} = OneSlice.CP(VesselMask{1});   RICA{2} = OneSlice.PhaseOnly(VesselMask{1});  RICA{3} = OneSlice.Full(VesselMask{1});
   RVA{1} = OneSlice.CP(VesselMask{2});   RVA{2} = OneSlice.PhaseOnly(VesselMask{2});  RVA{3} = OneSlice.Full(VesselMask{2});
@@ -149,12 +169,13 @@
   %%    Calculate labelling efficiency 
   %EffArray = LabelEff(15:0.05:25,RFStruct);
   if ~exist('Efficiency','var')
-    [Efficiency,FinalMag] = LabelEff(15:0.05:25,RFStruct);
+    [Efficiency,FinalMag] = LabelEff(0:0.05:25,RFStruct);
   end
-  BarMtx = zeros(3,5); StdMtx= zeros(3,5); FAToSim = 15:0.05:25;
+  %%
+  BarMtx = zeros(3,5); StdMtx= zeros(3,5); FAToSim = 0:0.05:25;
   CalcEff = @(x) mean(interp1(FAToSim,Efficiency,x));
   getStd = @(x) std(interp1(FAToSim,Efficiency,x));
-  for iDx = 1:numel(RICA)
+  for iDx = 1:numel(RICA)   
       BarMtx(iDx,1) = CalcEff(RICA{iDx});    BarMtx(iDx,2) = CalcEff(RVA{iDx});   BarMtx(iDx,3) = CalcEff(LICA{iDx});  
       BarMtx(iDx,4) = CalcEff(LVA{iDx});   BarMtx(iDx,5) = CalcEff(Full{iDx});
       StdMtx(iDx,1) = getStd(RICA{iDx});      StdMtx(iDx,2) = getStd(RVA{iDx});   StdMtx(iDx,3) = getStd(LICA{iDx});
@@ -180,6 +201,7 @@
   end
   RFAmp.Full = max(abs(bmin));   RFAmp.CP = max(abs(bCP));    RFAmp.PhaseOnly = max(abs(bPhase));
   PulseToWrite = 'Full';
+  %%
   switch PulseToWrite
       case 'Full'
         RFShimWrite(ToWrite.Full);
@@ -201,8 +223,24 @@ end
 %%
 runPlot;
 %%
- b1map = ptxFMObj.getB1PerV('Hz','NaN');
- b1mapCP = squeeze(sum(b1map,4));
- figure(54);imagesc(abs(b1map(:,:,11)))
- colorbar
+  b1map = ptxFMObj.getB1PerV('Hz','NaN');
+  b1mapCP = squeeze(sum(b1map,4));
+  figure(54);imagesc(abs(b1map(:,:,16)))
+  colorbar
  
+%%
+RF_duration_sec_vec = (600:25:750)*(1e-6);
+Efficiency_cell = cell(numel(RF_duration_sec_vec),1);
+FinalMag_cell = cell(numel(RF_duration_sec_vec),1);
+for iDx = 1:numel(RF_duration_sec_vec)
+    RFStruct = tyMakeGaussian(RF_duration_sec_vec(iDx)*1E6,4);
+    [Efficiency_cell{iDx},FinalMag_cell{iDx}] = LabelEff(0:0.2:30,RFStruct,RF_duration_sec_vec(iDx), 1100e-6);
+end
+
+figure(572)
+hold on 
+
+for iDx = 1:numel(RF_duration_sec_vec)
+    plot(0:0.2:30,Efficiency_cell{iDx})
+
+end
