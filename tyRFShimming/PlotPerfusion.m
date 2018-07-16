@@ -13,7 +13,7 @@ else
     pTxtoPlot(pTxtoPlot == 4095) = 0;
     CPtoPlot(CPtoPlot == 4095) = 0;
     CutOff = prctile(max(AllPoints)-AllPoints,99);
-    figure(99);
+    figure(99)
     set(gcf,'color','w','InvertHardcopy','off')
     set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
     clf
