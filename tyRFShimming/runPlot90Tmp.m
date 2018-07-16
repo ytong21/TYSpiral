@@ -2,7 +2,7 @@ figure(90)
 set(gcf,'color','w','InvertHardcopy','off')
 set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
 clf
-PlotFALim = [0 20]; FontSize = 12;   CLB = cell(10,1);   CLBFontSize = 12;
+PlotFALim = [0 20]; FontSize = 16;   CLB = cell(10,1);   CLBFontSize = 16;
 Figs = cell(4,3);
 
 Figs{2,1} = subplot(3,2,3);
