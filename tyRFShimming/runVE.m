@@ -4,7 +4,8 @@ function [bOut,finalRMSE,finalPwr,finalMag] =runVE(AFullFunc,param,maskedMaps)
     cost = inf;
     xCurr = zeros(param.numCh,1);
     Tol = 0.001;    
-    targetFAInRad = maskedMaps.TargetMasked*deg2rad(param.targetFlipAngle);
+    %targetFAInRad = maskedMaps.TargetMasked*deg2rad(param.targetFlipAngle);
+    targetFAInRad = ones(size(maskedMaps.b0MapMasked))*deg2rad(param.targetFlipAngle);
     
     phiTarget = angle(sum(maskedMaps.b1SensMaskedHz,2));
     z = exp(1i*phiTarget);

@@ -31,7 +31,8 @@ function [bOut,fval,exitflag,output] = runAS(bVE,RFStruct,maskedMaps,param,AFull
     
     % Creating a function handle based on getAMatSimp
     xInitial = [abs(bVE);angle(bVE)];
-    TargetFA = maskedMaps.TargetMasked*deg2rad(param.targetFlipAngle);
+    %TargetFA = maskedMaps.TargetMasked*deg2rad(param.targetFlipAngle);
+    TargetFA = ones(size(maskedMaps.b0MapMasked))*deg2rad(param.targetFlipAngle);
     %FunHandle = @(x) norm(abs(AFull*(x(1:8).*exp(1i*x(9:16)))) - TargetFA)/norm(TargetFA);
     FunHandle = @(x) -goodnessOfFit(abs(AFull*(x(1:8).*exp(1i*x(9:16)))),TargetFA,'NRMSE');
     
