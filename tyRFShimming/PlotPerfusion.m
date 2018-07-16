@@ -10,14 +10,17 @@ else
     AllPoints = nonzeros([pTx_Img.image(:);CP_Img.image(:)]);
     CPtoPlot = (max(AllPoints) - CP_Img.image)';
     pTxtoPlot = (max(AllPoints) - pTx_Img.image)';
+    pTxtoPlot(pTxtoPlot == 4095) = 0;
+    CPtoPlot(CPtoPlot == 4095) = 0;
     CutOff = prctile(max(AllPoints)-AllPoints,99);
-    figure(99)
+    %%
+    BB = figure(99);
     set(gcf,'color','w','InvertHardcopy','off')
     set(gcf,'units','centimeters','position',[4 4 40 20],'paperunits','centimeters','paperposition',[0 0 40 20])
     clf
     subplot(1,2,1)
-    imagesc(CPtoPlot,[0 CutOff]);colormap('gray');axis off;title('CP mode','FontSize',14)
+    imagesc(CPtoPlot,[1900 CutOff]);colormap('gray');axis off;title('CP mode','FontSize',16)
     subplot(1,2,2)
-    imagesc(pTxtoPlot,[0 CutOff]);colormap('gray');axis off;title('RF shimming','FontSize',14)
-   
+    imagesc(pTxtoPlot,[1900 CutOff]);colormap('gray');axis off;title('RF shimming','FontSize',16)
+
 end
