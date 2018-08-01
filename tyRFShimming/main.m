@@ -2,9 +2,9 @@
     addpath('/Users/ytong/Documents/MATLAB/For_James_Larkin');
     cd('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/')
     %pTxPath = '/Volumes/Data/DICOM/2018-06/20180601_F7T_2013_50_092';
-    %pTxPath = '/Users/ytong/Documents/Data/20180601_F7T_2013_50_092';
+    pTxPath = '/Users/ytong/Documents/Data/20180601_F7T_2013_50_092';
     %pTxPath = '/Users/ytong/Documents/Data/20171107_F7T_2013_50_083';
-    pTxPath = '/Users/ytong/Documents/Data/20171107_F7T_2013_50_083';
+    %pTxPath = '/Users/ytong/Documents/Data/20171107_F7T_2013_50_083';
     %pTxPath = '/Users/ytong/Documents/MATLAB/Temp/20171013_F7T_2013_40_387';
     %pTxPath = '/Users/ytong/Documents/Data/20180525_F7T_2013_50_091';
     %%
@@ -15,7 +15,7 @@
         'Localiser');
     %ptxFMObj = DicomFM.WTCpTxFieldmaps(pTxPath);
     
-    SliceIdx = 10;%input('Please enter the slice number: \n');
+    SliceIdx = 15;%input('Please enter the slice number: \n');
     
     %ptxFMObj.interpolateTo('Localiser');
     
@@ -56,7 +56,7 @@
     ImgToPlot.b1CP = abs(sum(ImgToPlot.b1,4));    
 
     %RFStruct = tyMakeHanning(600,5);
-    RFStruct = tyMakeGaussian(750,4);
+    RFStruct = tyMakeGaussian(600,4);
     %%  Constructing system matrix
     disp('Calculating system matrix...');
     SysMatMode = 'Full';
@@ -137,8 +137,9 @@
   FAFinal.PhaseOnly = rad2deg(AFull*bPhase);
 
   FullImage = struct;
-  %
-  JawSlicesMask = maskedMaps.mask(:,:,SliceIdx-1:SliceIdx+1);
+  % JawSlicesMask was originally designed to contain 3 slices (selected slice plus 2 adjacent slices)
+  % Attempting to reduce the design to one slice only. 
+  JawSlicesMask = maskedMaps.mask(:,:,SliceIdx);
   FullImage.CP = zeros(size(JawSlicesMask));
   FullImage.CP(JawSlicesMask) = abs(FAFinal.CP);
   FullImage.AS = zeros(size(JawSlicesMask));
@@ -160,11 +161,12 @@
   Error.AS = nrmse(abs(FAFinal.AS),ones(size(FAFinal.CP))*param.targetFlipAngle);
   Error.PhaseOnly = nrmse(abs(FAFinal.PhaseOnly),ones(size(FAFinal.CP))*param.targetFlipAngle); 
 
-  OneSlice.CP = FullImage.CP(:,:,2);      OneSlice.PhaseOnly = FullImage.PhaseOnly(:,:,2);  OneSlice.Full = FullImage.AS(:,:,2);
-  RICA{1} = OneSlice.CP(VesselMask{1});   RICA{2} = OneSlice.PhaseOnly(VesselMask{1});  RICA{3} = OneSlice.Full(VesselMask{1});
-  RVA{1} = OneSlice.CP(VesselMask{2});   RVA{2} = OneSlice.PhaseOnly(VesselMask{2});  RVA{3} = OneSlice.Full(VesselMask{2});
-  LICA{1} = OneSlice.CP(VesselMask{3});   LICA{2} = OneSlice.PhaseOnly(VesselMask{3});  LICA{3} = OneSlice.Full(VesselMask{3});
-  LVA{1} = OneSlice.CP(VesselMask{4});   LVA{2} = OneSlice.PhaseOnly(VesselMask{4});  LVA{3} = OneSlice.Full(VesselMask{4});
+  OneSlice = FullImage;
+  %OneSlice.CP = FullImage.CP(:,:,2);      OneSlice.PhaseOnly = FullImage.PhaseOnly(:,:,2);  OneSlice.Full = FullImage.AS(:,:,2);
+  RICA{1} = OneSlice.CP(VesselMask{1});   RICA{2} = OneSlice.PhaseOnly(VesselMask{1});  RICA{3} = OneSlice.AS(VesselMask{1});
+  RVA{1} = OneSlice.CP(VesselMask{2});   RVA{2} = OneSlice.PhaseOnly(VesselMask{2});  RVA{3} = OneSlice.AS(VesselMask{2});
+  LICA{1} = OneSlice.CP(VesselMask{3});   LICA{2} = OneSlice.PhaseOnly(VesselMask{3});  LICA{3} = OneSlice.AS(VesselMask{3});
+  LVA{1} = OneSlice.CP(VesselMask{4});   LVA{2} = OneSlice.PhaseOnly(VesselMask{4});  LVA{3} = OneSlice.AS(VesselMask{4});
   Full{1} = abs(FAFinal.CP);       Full{2} = abs(FAFinal.PhaseOnly);  Full{3} = abs(FAFinal.AS);
   %%    Calculate labelling efficiency 
   %EffArray = LabelEff(15:0.05:25,RFStruct);
@@ -244,3 +246,11 @@ for iDx = 1:numel(RF_duration_sec_vec)
     plot(0:0.2:30,Efficiency_cell{iDx})
 
 end
+%% Writing the workspace into a .mat file
+
+FilePartsCell = strsplit(pTxPath,filesep);
+FileNameStr = FilePartsCell{end};
+StructToSave = struct('ptxFMObj',ptxFMObj,'param',param,'maskedMaps',maskedMaps,'RFStruct',RFStruct);
+StructToSave.shims = struct('bAS',bAS,'bCP',bCP,'bmin',bmin,'bPhase',bPhase);
+
+
