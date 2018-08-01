@@ -44,7 +44,7 @@ set(Figs{1,1},'Position',[hp3(1) hp3(2) Figs{3,1}.Position(3) hp3(4)]);
 
 HoriOffset = 0.038;
 Figs{1,2} = subplot(3,2,2);
-imagesc(FullImage.CP(plotRolArray,plotCowArray,2)',PlotFALim); axis off;
+imagesc(FullImage.CP(plotRolArray,plotCowArray)',PlotFALim); axis off;
 title('Flip angle maps','FontSize',FontSize);
 ylabel('CP Mode','FontSize',FontSize,'FontWeight','bold');
 Figs{1,2}.YLabel.Visible = 'on';
@@ -52,7 +52,7 @@ set(Figs{1,2},'Position',[Figs{1,2}.Position(1) Figs{1,2}.Position(2) Figs{1,2}.
 colormap(Figs{1,2},'hot')
 
 Figs{2,2} = subplot(3,2,4);
-imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray,2)',PlotFALim);axis off;
+imagesc(FullImage.PhaseOnly(plotRolArray,plotCowArray)',PlotFALim);axis off;
 ylabel('Phase Only','FontSize',FontSize,'FontWeight','bold');
 Figs{2,2}.YLabel.Visible = 'on';
 set(Figs{2,2},'Position',[Figs{2,2}.Position(1) Figs{2,2}.Position(2) Figs{2,2}.Position(3) Figs{2,2}.Position(4)]);
@@ -60,7 +60,7 @@ colormap(Figs{2,2},'hot')
 nudge(Figs{2,2},[0 0.05 0 0]);
 
 Figs{3,2} = subplot(3,2,6);
-imagesc(FullImage.AS(plotRolArray,plotCowArray,2)',PlotFALim);axis off;
+imagesc(FullImage.AS(plotRolArray,plotCowArray)',PlotFALim);axis off;
 set(Figs{3,2},'Position',[Figs{3,2}.Position(1) Figs{3,2}.Position(2) Figs{3,2}.Position(3) Figs{3,2}.Position(4)]);
 ylabel('Full RF Shimming','FontSize',FontSize,'FontWeight','bold');
 Figs{3,2}.YLabel.Visible = 'on';
@@ -86,7 +86,7 @@ for iDx = 1:3
     delete(Figs{iDx,2});
 end
 Figs{1,3} = subplot('Position',FA_map_positions{1});
-imagesc(FullImage.CP(plotRowArrayReduced,plotCowArray,2)',PlotFALim); axis off;
+imagesc(FullImage.CP(plotRowArrayReduced,plotCowArray)',PlotFALim); axis off;
 title('Flip angle maps','FontSize',FontSize);
 ylabel('CP Mode','FontSize',FontSize,'FontWeight','bold');
 Figs{1,3}.YLabel.Visible = 'on';
@@ -94,7 +94,7 @@ Figs{1,3}.YLabel.Visible = 'on';
 colormap(Figs{1,3},'hot')
 
 Figs{2,3} = subplot('Position',FA_map_positions{2});
-imagesc(FullImage.PhaseOnly(plotRowArrayReduced,plotCowArray,2)',PlotFALim);axis off;
+imagesc(FullImage.PhaseOnly(plotRowArrayReduced,plotCowArray)',PlotFALim);axis off;
 ylabel('Phase Only','FontSize',FontSize,'FontWeight','bold');
 Figs{2,3}.YLabel.Visible = 'on';
 %set(Figs{2,3},'Position',[Figs{2,3}.Position(1) Figs{2,3}.Position(2) Figs{2,3}.Position(3) Figs{2,3}.Position(4)]);
@@ -102,7 +102,7 @@ colormap(Figs{2,3},'hot')
 %nudge(Figs{2,3},[0 0.05 0 0]);
 
 Figs{3,3} = subplot('Position',FA_map_positions{3});
-imagesc(FullImage.AS(plotRowArrayReduced,plotCowArray,2)',PlotFALim);axis off;
+imagesc(FullImage.AS(plotRowArrayReduced,plotCowArray)',PlotFALim);axis off;
 %set(Figs{3,3},'Position',[Figs{3,3}.Position(1) Figs{3,3}.Position(2) Figs{3,3}.Position(3) Figs{3,3}.Position(4)]);
 ylabel('Full RF Shimming','FontSize',FontSize,'FontWeight','bold');
 Figs{3,3}.YLabel.Visible = 'on';
