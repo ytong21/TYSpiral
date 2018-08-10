@@ -6,19 +6,20 @@ function [bOut, ErrorOut] = runPhaseOnly(AFull,param,RFStruct)
     optionsFMin = optimoptions(@fmincon);
     optionsFMin.Algorithm = 'active-set';
     optionsFMin.Display = 'none';
-    optionsFMin.MaxFunctionEvaluations = 5000;
+    optionsFMin.MaxFunctionEvaluations = param.MaxEvaluation;
     optionsFMin.SpecifyConstraintGradient = false;
     optionsFMin.OptimalityTolerance = param.tol;
     optionsFMin.FiniteDifferenceType = 'central';
-    
+    optionsFMin.MaxIterations = 40000;
     protectedModeConstraints = CoilConstraints.novaCoil( true );
     nonlincon = @(x) TYpowerConstraints_AS_Global_OneSpoke(x,protectedModeConstraints,...
-        param.TR,RFStruct.RF_pulse);
+        param.RFsep,RFStruct.RF_pulse);
 
     TargetFA = ones(size(AFull,1),1)*deg2rad(param.targetFlipAngle);
     AFullCP = AFull*ones(8,1);
     VoltCP = abs((TargetFA')/(AFullCP'));
-    FunHandle = @(x) -goodnessOfFit(abs(AFull*(x(1)*exp(1i*x(2:9)))),TargetFA,'NRMSE');
+    %FunHandle = @(x) -goodnessOfFit(abs(AFull*(x(1)*exp(1i*x(2:9)))),TargetFA,'NRMSE');
+    FunHandle = @(x) (norm(abs(AFull*(x(1)*exp(1i*x(2:9)))) - TargetFA)/norm(TargetFA));
     Iterations = 20;
     ErrorOut = zeros(1,Iterations);
     bOut = zeros(9,Iterations);
