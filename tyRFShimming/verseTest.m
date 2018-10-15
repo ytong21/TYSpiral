@@ -4,15 +4,18 @@ g = [0 0 6*ones(size(RFStruct_Example.RF_pulse)) 0 0];            % in mT/m
 dt = 10e-3;                     % in ms
 bmax = 0.5;
 gmax = 22;                      % in mT/m
-smax = 200;                     % in mT(m*ms)
+smax = 200;                     % in mT/(m*ms)
 dtout = 10e-3;                  % in ms
 emax = sum(b.^2)*dt*0.5;        % in units of b*b*dt
 
 
 [bv,gv] = mintverse(b,g,dt,bmax,gmax,smax,dtout,emax);
+bv_fine = interp1(1:numel(bv),bv,1:0.2:numel(bv));
+gv_fine = interp1(1:numel(gv),gv,1:0.2:numel(gv));
 
-
-
+% write into a .h file
+phase_vector_1mm = -0.001*cumsum(gv_fine*42577)*2E-6*2*pi;
+MakeDotH_VERSE(bv_fine,gv,dt_fine,phase_vector_1mm);
 
 %% Temporary values. Need a bit more work.
 numCh = 8;
@@ -20,9 +23,7 @@ peakV = 60;
 numsamples = numel(bv);
 targetFlipAngle = 20;
 
-%% write into a .h file
 
-MakeDotH_VERSE(bv,gv,dt*1E-3);
 %%
 fID = fopen('/Users/ytong/Documents/XP/GaussianVERSE.ini','w');
 writeGrad_mTm = [zeros(numel(gv),2) gv];
@@ -101,7 +102,7 @@ PhaseArray = TimeArray*FreqShift;
 New_b = interp1(0:10e-6:((numel(b)-1)*10e-6),b,0:1e-6:((numel(b)-1)*10e-6));
 New_g = interp1(0:10e-6:((numel(b)-1)*10e-6),g,0:1e-6:((numel(b)-1)*10e-6));
 [mx2,my2,mz2] = bloch_CTR_Hz(200*New_b.*exp(-1i*PhaseArray*pi*2),New_g*42.57E3/10,1e-6,3,0.1,0,dp,0);
-figure(60)
+figure(600)
 clf
 plot(dp,mz2)
 
@@ -114,7 +115,7 @@ PhaseArray = TimeArray*FreqShift;
 New_bv = interp1(0:10e-6:((numel(bv)-1)*10e-6),bv,0:1e-6:((numel(bv)-1)*10e-6));
 New_gv = interp1(0:10e-6:((numel(bv)-1)*10e-6),gv,0:1e-6:((numel(bv)-1)*10e-6));
 [mx3,my3,mz3] = bloch_CTR_Hz(200*New_bv.*exp(-1i*PhaseArray*pi*2),New_gv*42.57E3/10,1e-6,3,0.1,0,dp,0);
-figure(60)
+figure(601)
 clf
 plot(dp,mz3)
 
@@ -123,10 +124,48 @@ dp = -5:0.01:5;
 gv_Tm = gv*1E-3;
 gv_Hzperm = gv_Tm*42.57E6;
 gvCUMSUM = cumsum(gv_Hzperm)*10E-6;
-distance_m = -0.02;
-phase_vector = gvCUMSUM*distance_m;
+distance_m = 0.02;
+phase_vector = -gvCUMSUM*distance_m*pi*2;
 
-[mx4,my4,mz4] = bloch_CTR_Hz(200*bv.*exp(-1i*phase_vector*pi*2),gv_Hzperm/100,10e-6,inf,inf,0,dp,0);
+
+[mx4,my4,mz4] = bloch_CTR_Hz(200*bv.*exp(-1i*phase_vector),gv_Hzperm/100,10e-6,inf,inf,0,dp,0);
 figure(60)
 clf
-plot(dp,mz4)
+subplot(1,3,1)
+yyaxis left
+plot(10*(1:numel(bv)),200*bv); title('RF waveform');ylabel('Amplitude (Hz)');xlabel('time (us)')
+yyaxis right
+plot(10*(1:numel(bv)),phase_vector);ylabel('Phase (radians)');xlabel('Time (us)')
+
+subplot(1,3,2)
+plot(10*(1:numel(bv)),gv,'m');title('Gradient waveform');ylabel('mT/m');xlabel('Time (us)')
+subplot(1,3,3)
+
+plot(dp,mz4,'b')
+title('Slice profile')
+xlabel('Position (cm)')
+ylabel('Magnetisation')
+
+
+
+
+%% Making an rf array with finer sampling
+% tyMakeGaussian temporarily changed
+% 2us raster time. 300 points/600 us for rf/gradient flat top
+% 15 points/30 us for ramp up/down
+RFStruct_Fine = tyMakeGaussian(600,5);
+b_fine = RFStruct_Fine.RF_pulse(2:end);
+g_fine = ones(size(b_fine))*6;
+StepSize = 6/15;
+g_fine = [0:StepSize:StepSize*14 g_fine StepSize*14:-StepSize:0];
+b_fine = [zeros(1,15) b_fine zeros(1,15)];
+%b_fine = circshift(b_fine,5);
+phase_vector_1mm_gaussian_fine = -0.001*cumsum(g_fine*42577)*2E-6*2*pi;
+g_coarse = [2 4 6 6*ones(1,60) 4 2 0];
+dt_fine.rf = 2E-6; dt_fine.grad = 10E-6;
+MakeDotH_VERSE(b_fine,g_coarse,dt_fine,phase_vector_1mm_gaussian_fine);
+%% Making a gaussian into a .h file
+b2write = [0 0 RFStruct_Example.RF_pulse 0 0 0];
+g2write = [0 2 4 6*ones(1,numel(RFStruct_Example.RF_pulse)-1) 4 2 0];
+phase_vector_1mm_gaussian = -0.001*cumsum(g2write*42577)*10E-6*2*pi;
+MakeDotH_VERSE(b2write,g2write,dt*1E-3,phase_vector_1mm_gaussian);
