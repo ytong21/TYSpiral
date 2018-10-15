@@ -45,7 +45,7 @@ for iDx = 1:numel(string_separated)-1
             TempStr = regexp(The_Line{1}, '\S\w\S[:]\s[\d\S]+', 'match');
             TempStr = TempStr{1};
             TempStr(1:5) = [];
-            info_extracted(IdxCount).power.(TempField) = str2double(TempStr);
+            info_extracted(IdxCount).(TempField) = str2double(TempStr);
         end
 
         %   Find sequence name and protocol name, tag_dur, gauss_dur and rf
@@ -65,7 +65,7 @@ for iDx = 1:numel(string_separated)-1
                 else
                     TempStr(1:2) = []; TempStr = str2double(TempStr);
                 end
-                info_extracted(IdxCount).seq.(TempField) = TempStr;
+                info_extracted(IdxCount).(TempField) = TempStr;
             end
 
         
@@ -77,8 +77,8 @@ for iDx = 1:numel(string_separated)-1
         num_of_pulses = num_of_pulses{1};
         num_of_pulses([1 end]) = [];
         num_of_pulses = str2double(num_of_pulses)+1;
-        info_extracted(IdxCount).RF.tName = cell(1,num_of_pulses);
-        info_extracted(IdxCount).RF.pulse_amp = zeros(1,num_of_pulses);
+        info_extracted(IdxCount).tName = cell(1,num_of_pulses);
+        info_extracted(IdxCount).pulse_amp = zeros(1,num_of_pulses);
         
         for iDx2 = 1:num_of_pulses
             % Constructing the expressions
@@ -100,7 +100,7 @@ for iDx = 1:numel(string_separated)-1
                 TempStr = regexp(The_Line, '=\s\S+', 'match');
                 TempStr = TempStr{1}{1};
                 TempStr(1:2) = [];
-                info_extracted(IdxCount).RF.pulse_amp(iDx2) = str2double(TempStr);
+                info_extracted(IdxCount).pulse_amp(iDx2) = str2double(TempStr);
             end
         end
         
