@@ -7,8 +7,6 @@ gmax = 22;                      % in mT/m
 smax = 200;                     % in mT/(m*ms)
 dtout = 10e-3;                  % in ms
 emax = sum(b.^2)*dt*0.5;        % in units of b*b*dt
-
-
 [bv,gv] = mintverse(b,g,dt,bmax,gmax,smax,dtout,emax);
 bv_fine = interp1(1:numel(bv),bv,1:0.2:numel(bv));
 gv_fine = interp1(1:numel(gv),gv,1:0.2:numel(gv));
@@ -17,50 +15,7 @@ gv_fine = interp1(1:numel(gv),gv,1:0.2:numel(gv));
 phase_vector_1mm = -0.001*cumsum(gv_fine*42577)*2E-6*2*pi;
 MakeDotH_VERSE(bv_fine,gv,dt_fine,phase_vector_1mm);
 
-%% Temporary values. Need a bit more work.
-numCh = 8;
-peakV = 60;
-numsamples = numel(bv);
-targetFlipAngle = 20;
 
-
-%%
-fID = fopen('/Users/ytong/Documents/XP/GaussianVERSE.ini','w');
-writeGrad_mTm = [zeros(numel(gv),2) gv];
-writeRfAmp = abs(bv);
-writeRfPhase = angle(bv);
-fprintf(fID,'# Created in verseTest.m \n');
-fprintf(fID,'[pTXPulse]\n');
-fprintf(fID,'\n');
-fprintf(fID,'NUsedChannels        = %i\n',numCh);		
-fprintf(fID,'MaxAbsRF             = %0.3f	# peak RF voltage [V]\n',peakV);
-fprintf(fID,'Samples              = %i		# number of samples\n',numsamples);
-fprintf(fID,'PulseName            = GaussianVERSE\n');
-fprintf(fID,'Comment              = pTx pulse\n');
-fprintf(fID,'Oversampling         = %i		# no oversampling\n',1);
-fprintf(fID,'NominalFlipAngle     = %i		# flip-angle of this pulse if played out with ??V peak voltage\n',targetFlipAngle);
-fprintf(fID,'SampleTime			 = 10\n');
-
-% Gradient
-fprintf(fID,'\n');
-fprintf(fID,'[Gradient]\n');
-fprintf(fID,'\n');
-for iDx = 1:size(writeGrad_mTm,1)
-    fprintf(fID,'G[%i]= %f %f %f\n',iDx-1,writeGrad_mTm(iDx,1),writeGrad_mTm(iDx,2),writeGrad_mTm(iDx,3));
-end
-fprintf(fID,'\n');
-
-% RF
-for jDx = 1:size(writeRfAmp,2)
-    fprintf(fID,'[pTXPulse_ch%i]\n',jDx-1);
-    fprintf(fID,'\n');
-    for iDx = 1:size(writeRfAmp,1)
-        fprintf(fID,'RF[%i]=  %f\t%f\n',iDx-1,writeRfAmp(iDx,jDx),writeRfPhase(iDx,jDx));
-    end
-    fprintf(fID,'\n');
-end
-
-fclose(fID);
 %%
 figure(100)
 clf
