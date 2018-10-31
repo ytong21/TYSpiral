@@ -19,12 +19,14 @@ MyBox = cell(9,1);
 SubPlotsCell = cell(9,3);
 b2plot = [0 b 0];
 g2plot = [0 2 4 6*ones(size(RFStruct_Example.RF_pulse)) 4 2 0];
-FontSizeTmp = 13;
+FontSizeTmp = 15;
+FontWeightTmp = 'normal';
 figure(60)
 clf
 set(gcf,'color','w','InvertHardcopy','off')
-set(gcf,'units','centimeters','position',[4 4 13 40],'paperunits','centimeters','paperposition',[0 0 13 40])
+set(gcf,'units','centimeters','position',[4 4 15 40],'paperunits','centimeters','paperposition',[0 0 15 40])
 set ( 0, 'DefaultFigureColor', [1 0 0] )
+WidthFactor = 1;
 for iDx = 1:8
     SubPlotsCell{iDx,1} = subplot(9,3,(iDx-1)*3+1);
     plot(1:numel(b2plot),b2plot,'k','LineWidth',3)
@@ -38,10 +40,10 @@ for iDx = 1:8
     %MyBox{iDx} = text(2,1,['RF Chan ',num2str(iDx)], 'clipping', 'off');
     %nudge(MyBox{iDx},[-0.01 0 0 0])
      MyBox{iDx} = axes;
-     set(MyBox{iDx},'FontSize',12,'Ycolor','w','Xcolor','w',...
-         'Unit','normalized','Position',[xpos-0.003,ypos-0.012,0.01,0.07]);
-    MyBox{iDx}.YLabel.String =  ['RF Chan ',num2str(iDx)];  MyBox{iDx}.YLabel.FontSize = FontSizeTmp;
-    MyBox{iDx}.YLabel.Color = [0,0,0]; MyBox{iDx}.YLabel.FontWeight = 'Bold';
+     set(MyBox{iDx},'FontSize',FontSizeTmp,'Ycolor','w','Xcolor','w',...
+         'Unit','normalized','Position',[xpos-0.08,ypos+0.055,0.02,0.01]);
+    MyBox{iDx}.XLabel.String =  ({'RF',['Chan ' num2str(iDx)]});  MyBox{iDx}.XLabel.FontSize = FontSizeTmp;
+    MyBox{iDx}.XLabel.Color = [0,0,0]; MyBox{iDx}.XLabel.FontWeight = FontWeightTmp;
     %set(MyBox,'String',['RF Chan ',num2str(iDx)],'FontSize',14);
    
     SubPlotsCell{iDx,2} = subplot(9,3,(iDx-1)*3+2);
@@ -60,9 +62,13 @@ for iDx = 1:8
     set(gca,'ytick',[],'Ycolor','w','box','off','xtick',[])
     %PosTmp = [SubPlotsCell{iDx,3}.Position(1) SubPlotsCell{iDx,3}.Position(2)...
         %SubPlotsCell{iDx,3}.Position(3) SubPlotsCell{iDx,3}.Position(4)*950/600]
+    SubPlotsCell{iDx,1}.Position(3) = SubPlotsCell{iDx,1}.Position(3)*WidthFactor;
+    SubPlotsCell{iDx,2}.Position(3) = SubPlotsCell{iDx,2}.Position(3)*WidthFactor;
     SubPlotsCell{iDx,3}.Position = [SubPlotsCell{iDx,3}.Position(1) SubPlotsCell{iDx,3}.Position(2)...
-        SubPlotsCell{iDx,3}.Position(3)*840/600 SubPlotsCell{iDx,3}.Position(4)];
+        WidthFactor*SubPlotsCell{iDx,3}.Position(3)*840/600 SubPlotsCell{iDx,3}.Position(4)];
     %pbaspect([1 0.835164835164835 0.835164835164835])
+    nudge(SubPlotsCell{iDx,1},[0.03 0 0 0]);
+    nudge(SubPlotsCell{iDx,2},[0.015 0 0 0]);
 end
 PulseType = cell(1,3);
 
@@ -80,7 +86,7 @@ for iDx = 1:3
             PulseType{iDx}.XLabel.String = 'VERSE Shimmed';
     end
     PulseType{iDx}.XLabel.FontSize = FontSizeTmp;
-    PulseType{iDx}.XLabel.Color = [0,0,0]; PulseType{iDx}.XLabel.FontWeight = 'Bold';
+    PulseType{iDx}.XLabel.Color = [0,0,0]; PulseType{iDx}.XLabel.FontWeight = FontWeightTmp;
     
     SubPlotsCell{9,iDx} = subplot(9,3,24+iDx);
     switch iDx 
@@ -93,15 +99,17 @@ for iDx = 1:3
     end
         ylim([0 12]);
         set(gca,'ytick',[],'Ycolor','w','box','off','xtick',[])
-        
+    SubPlotsCell{9,iDx}.Position(3) =   SubPlotsCell{9,iDx}.Position(3)*WidthFactor;
+
 end
+    nudge(SubPlotsCell{9,1},[0.03 0 0 0]); nudge(SubPlotsCell{9,2},[0.015 0 0 0]);
  SubPlotsCell{9,3}.Position = [SubPlotsCell{9,3}.Position(1) SubPlotsCell{9,3}.Position(2)...
         SubPlotsCell{9,3}.Position(3)*840/600 SubPlotsCell{9,3}.Position(4)];
 nudge(PulseType{3},[0.045 0 0 0])
     
 
      MyBox{9} = axes;
-     set(MyBox{9},'FontSize',12,'Ycolor','w','Xcolor','w','Unit','normalized',...
-         'Position',[SubPlotsCell{9,1}.Position(1)-0.003,SubPlotsCell{9,1}.Position(1)-0.03,0.00001,0.07]);
-    MyBox{9}.YLabel.String =  'Gradient';  MyBox{9}.YLabel.FontSize = FontSizeTmp;
-    MyBox{9}.YLabel.Color = [0,0,0]; MyBox{9}.YLabel.FontWeight = 'Bold';
+     set(MyBox{9},'FontSize',FontSizeTmp,'Ycolor','w','Xcolor','w','Unit','normalized',...
+         'Position',[SubPlotsCell{9,1}.Position(1)-0.095,SubPlotsCell{9,1}.Position(1),0.015,0.001]);
+    MyBox{9}.XLabel.String =  'Gradient';  MyBox{9}.XLabel.FontSize = FontSizeTmp;
+    MyBox{9}.XLabel.Color = [0,0,0]; MyBox{9}.XLabel.FontWeight = FontWeightTmp;
