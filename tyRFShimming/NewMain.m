@@ -3,7 +3,8 @@
     cd('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/')
     %pTxPath = '/Volumes/Data/DICOM/2018-10/20181019_F7T_2013_50_097';
     %pTxPath = '/Volumes/Data/DICOM/2018-10/20181022_F7T_2013_50_098';
-    pTxPath = '/Volumes/Data/DICOM/2018-10/20181026_F7T_2013_50_099';
+    %pTxPath = '/Volumes/Data/DICOM/2018-10/20181026_F7T_2013_50_099';
+    pTxPath = '/Volumes/Data/DICOM/2018-10/20181030_F7T_2013_50_100';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     %%
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_160VRef_tagging_32meas__B1',...
@@ -14,7 +15,7 @@
 %         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','localizer_3D_moved','InterpTarget',...
 %         'Localiser');
     %%
-    SliceIdx = 16;  % Decided by visual inspection of the tof images
+    SliceIdx = 18;  % Decided by visual inspection of the tof images
     ptxFMObj.createMask(@(x) DicomFM.maskFunctions.VEellipseMask(x,SliceIdx,[1 1 1 1]),true);  
     
     %% Defineding a verse waveform
@@ -401,11 +402,14 @@ set(CLB{9},'Position',[ 0.878059964726631         0.209876543209877         0.01
 
   %% Writing the pulse
   makeRFToWrite = @(b) [abs(b)/max(abs(b)), angle(b)];
-
+  vCP = sqrt(sum(abs(bmin_verse).^2)/8)*ones(size(bCP));
+  
+  
   ToWrite.Full = makeRFToWrite(bmin_gaussain);
   ToWrite.CP = makeRFToWrite(bCP);
   ToWrite.PhaseOnly = makeRFToWrite(bPhase);
   ToWrite.VERSE = makeRFToWrite(bmin_verse);
+  ToWrite.vCP = makeRFToWrite(vCP);
   for iDx = 1:8
       if ToWrite.Full(iDx,2) < 0
           ToWrite.Full(iDx,2) = ToWrite.Full(iDx,2) + (2*pi);
@@ -414,13 +418,15 @@ set(CLB{9},'Position',[ 0.878059964726631         0.209876543209877         0.01
       elseif ToWrite.CP(iDx,2) < 0
           ToWrite.CP(iDx,2) = ToWrite.CP(iDx,2) + (2*pi);
       elseif ToWrite.VERSE(iDx,2) < 0
-          ToWrite.VERSE(iDx,2) = ToWrite.VERSE(iDx,2) + (2*pi);         
+          ToWrite.VERSE(iDx,2) = ToWrite.VERSE(iDx,2) + (2*pi);
+      elseif ToWrite.vCP(iDx,2) < 0
+          ToWrite.vCP(iDx,2) = ToWrite.vCP(iDx,2) + (2*pi);          
       end
   end
   RFAmp.Full = max(abs(bmin_gaussain));   RFAmp.CP = max(abs(bCP));    RFAmp.PhaseOnly = max(abs(bPhase));
-  RFAmp.VERSE = max(abs(bmin_verse));
+  RFAmp.VERSE = max(abs(bmin_verse)); RFAmp.vCP = max(abs(vCP));
   %%
-  PulseToWrite = 'VERSE';
+  PulseToWrite = 'vCP';
   switch PulseToWrite
       case 'Full'
         RFShimWrite(ToWrite.Full);
@@ -433,7 +439,10 @@ set(CLB{9},'Position',[ 0.878059964726631         0.209876543209877         0.01
         fprintf('The max voltage is %f Volts.\n',RFAmp.PhaseOnly);
       case 'VERSE'
         RFShimWrite(ToWrite.VERSE); 
-        fprintf('The max voltage is %f Volts.\n',RFAmp.VERSE);          
+        fprintf('The max voltage is %f Volts.\n',RFAmp.VERSE); 
+      case 'vCP'
+        RFShimWrite(ToWrite.vCP); 
+        fprintf('The max voltage is %f Volts.\n',RFAmp.vCP);          
   end
 if isdir('/Volumes/Disk_C')
     copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/pTXVEPCASLShim.ini','/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTXVEPCASLShim.ini')
