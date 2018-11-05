@@ -1,3 +1,5 @@
+addpath('/Users/ytong/Documents/MATLAB/For_James_Larkin');
+cd('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyRFShimming/')
 RFStruct_Example = tyMakeGaussian(600,5);
 b = [0 0 RFStruct_Example.RF_pulse 0 0];  % arbitrary unit, peak=1
 g = [0 0 6*ones(size(RFStruct_Example.RF_pulse)) 0 0];            % in mT/m
@@ -11,7 +13,7 @@ emax = sum(b.^2)*dt*0.5;        % in units of b*b*dt
 bv_fine = interp1(1:numel(bv),bv,1:0.2:numel(bv));
 gv_fine = interp1(1:numel(gv),gv,1:0.2:numel(gv));
 
-% write into a .h file
+%% write into a .h file
 phase_vector_1mm = -0.001*cumsum(gv_fine*42577)*2E-6*2*pi;
 MakeDotH_VERSE(bv_fine,gv,dt_fine,phase_vector_1mm);
 
@@ -124,3 +126,26 @@ b2write = [0 0 RFStruct_Example.RF_pulse 0 0 0];
 g2write = [0 2 4 6*ones(1,numel(RFStruct_Example.RF_pulse)-1) 4 2 0];
 phase_vector_1mm_gaussian = -0.001*cumsum(g2write*42577)*10E-6*2*pi;
 MakeDotH_VERSE(b2write,g2write,dt*1E-3,phase_vector_1mm_gaussian);
+
+
+%% Trying to simulate different slice profiles with different off-resonance values
+OffResArray = -150:50:150;
+dp = -0.2:0.005:0.2;
+[mx_OffRes,my_OffRes,mz_OffRes] = bloch_CTR_Hz(900*bv,(gv/10)*42.57E3,10e-6,inf,inf,OffResArray,dp,0);
+FontSize = 14;
+figure(104)
+clf
+set(gcf,'color','w','InvertHardcopy','off')
+set (0, 'DefaultFigureColor', [1 1 1] )
+legend_cell = cell(size(mz_OffRes,2),1);
+for iDx = 1:size(mz_OffRes,2)
+    plot(dp,mz_OffRes(:,iDx))
+    hold on
+    legend_cell{iDx} = sprintf('%d Hz',OffResArray(iDx));
+end
+title('Slice profile','FontSize',FontSize)
+xlabel('Position (cm)','FontSize',FontSize,'FontWeight','bold')
+ylabel('Magnetisation','FontSize',FontSize,'FontWeight','bold')
+legend(legend_cell)
+
+
