@@ -729,6 +729,72 @@ plot_tsnr_trend(tSNR_mean_std_new)
 %%
 rund_perf_plot
 %%
+plot_hist(rad2deg((AFull_gaussian*bCP)),rad2deg((AFull_gaussian*bmin_gaussain)),...
+    rad2deg((AFull_verse*bmin_verse)));
+%%
+plot_stacked_hist_all(Sim_FA_array);
+%%
+function plot_stacked_hist_all(Sim_FA_array)
+    Sim_FA_cell = cell(5,5);
+    for ii = 1:numel(Sim_FA_array)
+        Sim_FA_cell{ii,1} = Sim_FA_array(ii).Gaussian_CP;
+        Sim_FA_cell{ii,2} = Sim_FA_array(ii).Gaussian_shimmed;
+        Sim_FA_cell{ii,3} = Sim_FA_array(ii).VERSE_shimmed;
+        Sim_FA_cell{ii,4} = Sim_FA_array(ii).VERSE_relax_2;
+        Sim_FA_cell{ii,5} = Sim_FA_array(ii).VERSE_relax_10;
+    end
+    Nbins = [20 30 32 33 15];
+    YLIM = [0 150;0 150;0 150;0 150;0 400];
+    TitleStr = {'Gaussian CP','Gaussian Shimmed','VERSE Shimmed','VERSE relaxed by 2','VERSE relaxed by 10'};
+    EDGES = 0:0.5:25;
+    for ii = 1:size(Sim_FA_cell,1)
+        temp = {Sim_FA_cell{1,ii},Sim_FA_cell{2,ii},Sim_FA_cell{3,ii},...
+            Sim_FA_cell{4,ii},Sim_FA_cell{5,ii}};
+        plot_stacked_single(temp,ii,YLIM,TitleStr,Nbins,EDGES);
+    end
+    function plot_stacked_single(FA_cell,Order,YLIM,TitleStr,Nbins,EDGES)
+        colormat =    [0.2078    0.1843    0.5294;
+                       0.1804    0.6824    0.6706;
+                       1         0.549     0];
+        FA_all = [FA_cell{1};FA_cell{2};FA_cell{3};FA_cell{4};FA_cell{5}];
+        %[~,edges] = histcounts(FA_all,Nbins(Order));
+        [n1] = histcounts(FA_cell{1},EDGES);
+        [n2] = histcounts(FA_cell{2},EDGES);
+        [n3] = histcounts(FA_cell{3},EDGES);
+        [n4] = histcounts(FA_cell{4},EDGES);
+        [n5] = histcounts(FA_cell{5},EDGES);
+        centres = EDGES(1:(end-1)) + diff(EDGES);
+        subplot(5,1,Order)
+        H = bar(centres,[n1.' n2.' n3.' n4.' n5'],'stacked','barwidth',1,'edgecolor','k','linewidth',0.01);
+        xlabel('Flip-angle (°)')
+        xlim([0 25])
+        %xlim(XLIM(Order,:))
+        ylim(YLIM(Order,:))
+        title(TitleStr{Order})
+    end
+end
+%%
+function plot_hist(GCP,Gshimmed,Vshimmed)
+figure(104)
+set(gcf,'color','w','InvertHardcopy','off')
+set(gcf,'units','centimeters','position',[4 4 30 20],'paperunits','centimeters','paperposition',[0 0 40 20])
+%histogram(abs(FAFinal.AS),20,'Normalization','probability');hold on;
+%[f1,xi] = ksdensity(abs(FAFinal.AS),linspace(17,22,100));
+%plot(xi,f1,'b');
+edges = 5:0.5:25;
+Histo2{1,1} = histogram(abs(GCP),edges,'FaceColor','b');    Histo2{1,1}.Normalization = 'probability'; hold on
+Histo2{2,1} = histogram(abs(Gshimmed),edges,'FaceColor','g');    Histo2{2,1}.Normalization = 'probability';
+Histo2{3,1} = histogram(abs(Vshimmed),edges,'FaceColor','y');    Histo2{3,1}.Normalization = 'probability';
+box off
+xlabel('Flip angle (°)');xlim([5 25])
+ylabel('Probability'); ylim([0 0.15])
+title('Flip angle achieved in all vessels');
+lgd = legend('CP mode','Gaussian shimmed','VERSE shimmed');legend('boxoff')   
+lgd.FontSize = 17;set(gca, 'FontSize', 20)
+
+
+end
+%%
 function rund_perf_plot
 perf_to_plot = cell(2,2);
 perf_to_plot{2,1} = niftiread('/Users/ytong/Documents/Data/ForMRM/7T/F7T_2013_50_099/images_022_toVEPCASLVERSE28/images_022_toVEPCASLVERSE28_mean.nii.gz');
