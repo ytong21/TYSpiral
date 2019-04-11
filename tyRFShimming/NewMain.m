@@ -733,30 +733,152 @@ plot_hist(rad2deg((AFull_gaussian*bCP)),rad2deg((AFull_gaussian*bmin_gaussain)),
     rad2deg((AFull_verse*bmin_verse)));
 %%
 plot_stacked_hist_all(Sim_FA_array);
+
+%%  Run simulation for different relaxation factors for Gaussian and VERSE
+MAT_file_names = {'20181026_F7T_2013_50_099_rerun.mat','20181030_F7T_2013_50_100.mat',...
+    '20181105_F7T_2013_50_101.mat','20181105_F7T_2013_50_102.mat','20181122_F7T_2013_50_106.mat'};
+Relaxed_FA_Gaussian = cell(6,10);
+Relaxed_FA_VERSE = cell(6,10);
+RFStruct__Gaussian = tyMakeGaussian(600,5);
+RFStruct__Gaussian.RF_pulse = RFStruct__Gaussian.RF_pulse';
+RFStruct_VERSE = struct('RF_pulse',bv);
+%
+% I have transposed the RF_pulse property in the gaussian pulse here.
+Relax_Factor = 10;
+%g_gauss = zeros(size(RFStruct__Gaussian.RF_pulse));
+for ii = 1:numel(MAT_file_names)
+    load(MAT_file_names{ii});
+    b_Gaussian = RunOptimisation(RFStruct__Gaussian,g_gauss,maskedMaps,param);
+    b_VERSE = RunOptimisation(RFStruct_VERSE,gv,maskedMaps,param);
+    Relaxed_FA_Gaussian{ii,Relax_Factor} = abs(rad2deg((AFull_gaussian*b_Gaussian)));
+    Relaxed_FA_VERSE{ii,Relax_Factor} = abs(rad2deg((AFull_verse*b_VERSE)));
+end
+Relaxed_FA_Gaussian{6,Relax_Factor} = [Relaxed_FA_Gaussian{1,Relax_Factor};Relaxed_FA_Gaussian{2,Relax_Factor};...
+    Relaxed_FA_Gaussian{3,Relax_Factor};Relaxed_FA_Gaussian{4,Relax_Factor};Relaxed_FA_Gaussian{5,Relax_Factor}];
+Relaxed_FA_VERSE{6,Relax_Factor} = [Relaxed_FA_VERSE{1,Relax_Factor};Relaxed_FA_VERSE{2,Relax_Factor};...
+    Relaxed_FA_VERSE{3,Relax_Factor};Relaxed_FA_VERSE{4,Relax_Factor};Relaxed_FA_VERSE{5,Relax_Factor}];
+%%
+PlotMeanFA_wRelaxation(Relaxed_FA_Gaussian,Relaxed_FA_VERSE);
+%%
+function PlotMeanFA_wRelaxation(Relaxed_FA_Gaussian,Relaxed_FA_VERSE)
+Mean_Matrix = zeros(2,size(Relaxed_FA_Gaussian,2));
+Std_Matrix = zeros(2,size(Relaxed_FA_Gaussian,2));
+for iDx = 1:size(Relaxed_FA_Gaussian,2)
+    Mean_Matrix(1,iDx) = mean(Relaxed_FA_Gaussian{6,iDx});
+    Mean_Matrix(2,iDx) = mean(Relaxed_FA_VERSE{6,iDx});
+    Std_Matrix(1,iDx) = std(Relaxed_FA_Gaussian{6,iDx});
+    Std_Matrix(2,iDx) = std(Relaxed_FA_VERSE{6,iDx}); 
+end
+    close all
+    figure(453)
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 20 20],'paperunits',...
+            'centimeters','paperposition',[0 0 20 20])
+    errorbar(1:10,Mean_Matrix(1,:),Std_Matrix(1,:),'--d','LineWidth',2.5,'MarkerSize',11)
+    hold on
+    errorbar(1.07:1:10.07,Mean_Matrix(2,:),Std_Matrix(2,:),'-d','LineWidth',2.5,'MarkerSize',10)
+    LGD = legend('Gaussian','VERSE','Location','northwest');
+    LGD.FontSize = 15;
+    box off
+    
+    xtick(1:10)
+    xlabel('Relaxation Factor')
+    ylabel('Flip-angle (°)')
+    xlim([1 10.1])
+    ylim([7 23])
+    set(gca,'FontSize',14)
+    
+    %ylim([5 25])
+end
+%%
+function bmin = RunOptimisation(RFStruct,grad,maskedMaps,param)
+   % Constructing system matrix
+   %RFStruct = struct('RF_pulse',bv);
+    disp('Calculating system matrix...');
+    SysMatMode = 'Full';
+    if strcmp(SysMatMode,'Approximation')
+        AFull_verse = getAMatSimp(RFStruct,maskedMaps.b1SensMasked,maskedMaps.b0MapMasked); %Nv-(2*Nc) sys mtx, rad/V
+    elseif strcmp(SysMatMode,'Full')
+        %gr = zeros(numel(RFStruct.RF_pulse),3);
+        gr = zeros(numel(grad),3);
+        gr(:,3) = grad;
+        rfOn = true(size(gr,1),1);
+        tp = 10E-6 * ones(size(rfOn)); % in seconds
+        DA = genAMatFull(tp,rfOn,gr,maskedMaps.b1SensMaskedHz,...
+            maskedMaps.b0MapMasked,maskedMaps.posVox);
+     %  To take the RF pulse shape into account. Construct a pseudo-diagonal matrix
+        RFDiag = zeros(size(DA,2),8);
+        RFSize = numel(RFStruct.RF_pulse);
+        %RFSize = numel(bv);
+        for iDx = 1:8
+            RFDiag(((1:RFSize)+(iDx-1)*RFSize),iDx) = RFStruct.RF_pulse;
+        end
+        AFullMag = DA*RFDiag;  %    magnetization /V
+        AFull = asin(AFullMag);   % rad/V  Dupas paper in rad/V
+    end
+    %   Loading PulsesFromDSV.mat
+    %   A struct containing information of tagging, WET, inversion, fat sat
+    %   and imaging pulses.
+    if(exist('PulsesFromDSV','var') ~= 1)
+        load PulsesFromDSV.mat
+    end
+    disp('Complete')
+    %  Running RF shimming Step 1: Variable-exchange method
+    disp('Running RF shimming variable-exchange optimization...')
+    tic
+    tikhonovArray = power(10,-7:0.5:-3);
+    bVE = zeros(8,numel(tikhonovArray));
+    for iDx = 1:numel(tikhonovArray)
+        param.CGtikhonov = tikhonovArray(iDx);
+        [bVE(:,iDx),NRMSETmp,~,~] = runVE(AFull,param,maskedMaps);
+        disp(NRMSETmp)  
+    end
+    toc
+    disp('Complete')
+    %  Running RF shimming Step 2: Active-set method
+    disp('Running RF shimming active-set optimization...')
+    tic
+    bAS = zeros(16,numel(tikhonovArray));
+    NRMSE = zeros(size(tikhonovArray));
+    output = cell(size(NRMSE));
+    exitflag = zeros(size(NRMSE));
+    for iDx = 1:numel(tikhonovArray)
+        param.CGtikhonov = tikhonovArray(iDx);
+        [bAS(:,iDx),NRMSE(iDx),exitflag(iDx),output{iDx}] = runAS(bVE(:,iDx),RFStruct,maskedMaps,param,AFull);
+    end
+    [~, minIndex] = min(NRMSE);
+    toc
+        bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
+    disp('Complete')
+end
 %%
 function plot_stacked_hist_all(Sim_FA_array)
-    Sim_FA_cell = cell(5,5);
+    Sim_FA_cell = cell(5,3);
     for ii = 1:numel(Sim_FA_array)
         Sim_FA_cell{ii,1} = Sim_FA_array(ii).Gaussian_CP;
         Sim_FA_cell{ii,2} = Sim_FA_array(ii).Gaussian_shimmed;
         Sim_FA_cell{ii,3} = Sim_FA_array(ii).VERSE_shimmed;
-        Sim_FA_cell{ii,4} = Sim_FA_array(ii).VERSE_relax_2;
-        Sim_FA_cell{ii,5} = Sim_FA_array(ii).VERSE_relax_10;
+        %Sim_FA_cell{ii,4} = Sim_FA_array(ii).VERSE_relax_2;
+        %Sim_FA_cell{ii,5} = Sim_FA_array(ii).VERSE_relax_10;
     end
-    Nbins = [20 30 32 33 15];
-    YLIM = [0 150;0 150;0 150;0 150;0 400];
+    %YLIM = [0 150;0 150;0 150;0 150;0 400];
     TitleStr = {'Gaussian CP','Gaussian Shimmed','VERSE Shimmed','VERSE relaxed by 2','VERSE relaxed by 10'};
     EDGES = 0:0.5:25;
-    for ii = 1:size(Sim_FA_cell,1)
+    for ii = 1:size(Sim_FA_cell,2)
         temp = {Sim_FA_cell{1,ii},Sim_FA_cell{2,ii},Sim_FA_cell{3,ii},...
             Sim_FA_cell{4,ii},Sim_FA_cell{5,ii}};
-        plot_stacked_single(temp,ii,YLIM,TitleStr,Nbins,EDGES);
+        plot_stacked_single(temp,ii,TitleStr,EDGES);
     end
-    function plot_stacked_single(FA_cell,Order,YLIM,TitleStr,Nbins,EDGES)
+    function plot_stacked_single(FA_cell,Order,TitleStr,EDGES)
+        
+        figure(401)
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 30 30],'paperunits',...
+            'centimeters','paperposition',[0 0 30 30])
         colormat =    [0.2078    0.1843    0.5294;
                        0.1804    0.6824    0.6706;
                        1         0.549     0];
-        FA_all = [FA_cell{1};FA_cell{2};FA_cell{3};FA_cell{4};FA_cell{5}];
+        %FA_all = [FA_cell{1};FA_cell{2};FA_cell{3};FA_cell{4};FA_cell{5}];
         %[~,edges] = histcounts(FA_all,Nbins(Order));
         [n1] = histcounts(FA_cell{1},EDGES);
         [n2] = histcounts(FA_cell{2},EDGES);
@@ -764,13 +886,19 @@ function plot_stacked_hist_all(Sim_FA_array)
         [n4] = histcounts(FA_cell{4},EDGES);
         [n5] = histcounts(FA_cell{5},EDGES);
         centres = EDGES(1:(end-1)) + diff(EDGES);
-        subplot(5,1,Order)
-        H = bar(centres,[n1.' n2.' n3.' n4.' n5'],'stacked','barwidth',1,'edgecolor','k','linewidth',0.01);
-        xlabel('Flip-angle (°)')
+        subplot(3,1,Order)
+        H = bar(centres,[n1.' n2.' n3.' n4.' n5.'],'stacked','barwidth',1,'edgecolor','k','linewidth',0.01);
+        if (Order ~= 3)
+            set(gca,'xtick',[])
+        else
+            xlabel('Flip-angle (°)','FontSize',15)
+        end
+        box off
+        LGD = legend('Subject 1','Subject 2','Subject 3','Subject 4','Subject 5');
+        LGD.FontSize = 13;
         xlim([0 25])
-        %xlim(XLIM(Order,:))
-        ylim(YLIM(Order,:))
-        title(TitleStr{Order})
+        ylim([0 150])
+        text(0.5,130,TitleStr{Order},'FontSize',15,'FontWeight','Bold')
     end
 end
 %%
