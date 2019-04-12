@@ -758,9 +758,18 @@ Relaxed_FA_Gaussian{6,Relax_Factor} = [Relaxed_FA_Gaussian{1,Relax_Factor};Relax
 Relaxed_FA_VERSE{6,Relax_Factor} = [Relaxed_FA_VERSE{1,Relax_Factor};Relaxed_FA_VERSE{2,Relax_Factor};...
     Relaxed_FA_VERSE{3,Relax_Factor};Relaxed_FA_VERSE{4,Relax_Factor};Relaxed_FA_VERSE{5,Relax_Factor}];
 %%
-PlotMeanFA_wRelaxation(Relaxed_FA_Gaussian,Relaxed_FA_VERSE);
+RunnningTime = zeros(5,2);
+for ii = 1:numel(MAT_file_names)
+    [~,RunnningTime(ii,1)] = RunOptimisation(RFStruct__Gaussian,g_gauss,maskedMaps,param);
+    [~,RunnningTime(ii,2)] = RunOptimisation(RFStruct_VERSE,gv,maskedMaps,param);
+end
+
 %%
-function PlotMeanFA_wRelaxation(Relaxed_FA_Gaussian,Relaxed_FA_VERSE)
+PlotMeanFA_wRelaxation(Relaxed_FA_Gaussian,Relaxed_FA_VERSE,Sim_FA_array);
+%%
+PlotPulseDesign(plotRolArray,plotCowArray,row,FullImage,maskedMaps,ImgToPlot,SliceIdx)
+%%
+function PlotMeanFA_wRelaxation(Relaxed_FA_Gaussian,Relaxed_FA_VERSE,Sim_FA_array)
 Mean_Matrix = zeros(2,size(Relaxed_FA_Gaussian,2));
 Std_Matrix = zeros(2,size(Relaxed_FA_Gaussian,2));
 for iDx = 1:size(Relaxed_FA_Gaussian,2)
@@ -769,29 +778,38 @@ for iDx = 1:size(Relaxed_FA_Gaussian,2)
     Std_Matrix(1,iDx) = std(Relaxed_FA_Gaussian{6,iDx});
     Std_Matrix(2,iDx) = std(Relaxed_FA_VERSE{6,iDx}); 
 end
-    close all
-    figure(453)
-    set(gcf,'color','w','InvertHardcopy','off')
-    set(gcf,'units','centimeters','position',[4 4 20 20],'paperunits',...
-            'centimeters','paperposition',[0 0 20 20])
-    errorbar(1:10,Mean_Matrix(1,:),Std_Matrix(1,:),'--d','LineWidth',2.5,'MarkerSize',11)
+    %close all
+    %figure(453)
+    SBPLT = subplot(1,2,2);
+%     set(gcf,'color','w','InvertHardcopy','off')
+%     set(gcf,'units','centimeters','position',[4 4 25 20],'paperunits',...
+%             'centimeters','paperposition',[0 0 25 20])
+    FA_CP = [Sim_FA_array(1).Gaussian_CP;Sim_FA_array(2).Gaussian_CP;Sim_FA_array(3).Gaussian_CP;...
+    Sim_FA_array(4).Gaussian_CP;Sim_FA_array(5).Gaussian_CP];
+    
     hold on
-    errorbar(1.07:1:10.07,Mean_Matrix(2,:),Std_Matrix(2,:),'-d','LineWidth',2.5,'MarkerSize',10)
-    LGD = legend('Gaussian','VERSE','Location','northwest');
-    LGD.FontSize = 15;
+    errorbar(1.07:1:10.07,Mean_Matrix(2,:),Std_Matrix(2,:),'-d','LineWidth',3,'MarkerSize',13)
+    errorbar(1:10,Mean_Matrix(1,:),Std_Matrix(1,:),'--d','LineWidth',3,'MarkerSize',13)
+    errorbar(0.9,mean(FA_CP),std(FA_CP),'d','LineWidth',3,'MarkerSize',13);
+    LGD = legend('VERSE','Gaussian','CP Mode','Location','east');
+    LGD.FontSize = 16;
     box off
     
     xtick(1:10)
     xlabel('Relaxation Factor')
-    ylabel('Flip-angle (°)')
-    xlim([1 10.1])
-    ylim([7 23])
-    set(gca,'FontSize',14)
-    
+    YLB = ylabel('Flip-angle (°)');
+    xlim([0.5 10.1])
+    %ylim([4 24])
+    set(gca,'FontSize',18)
+    nudge(LGD,[-0.03 0.18 0 0])
+    %set(get(gca,'ylabel'),'rotation',0)
+    %YLB.Position(1) = YLB.Position(1)-0.35;
+    nudge(SBPLT,[-0.03 0 0 0])
+    text(-0.8,22.3,'d','FontSize',23,'FontWeight','Bold')
     %ylim([5 25])
 end
 %%
-function bmin = RunOptimisation(RFStruct,grad,maskedMaps,param)
+function [bmin,TimeIntverval] = RunOptimisation(RFStruct,grad,maskedMaps,param)
    % Constructing system matrix
    %RFStruct = struct('RF_pulse',bv);
     disp('Calculating system matrix...');
@@ -833,11 +851,11 @@ function bmin = RunOptimisation(RFStruct,grad,maskedMaps,param)
         [bVE(:,iDx),NRMSETmp,~,~] = runVE(AFull,param,maskedMaps);
         disp(NRMSETmp)  
     end
-    toc
+    %toc
     disp('Complete')
     %  Running RF shimming Step 2: Active-set method
     disp('Running RF shimming active-set optimization...')
-    tic
+    %tic
     bAS = zeros(16,numel(tikhonovArray));
     NRMSE = zeros(size(tikhonovArray));
     output = cell(size(NRMSE));
@@ -847,9 +865,10 @@ function bmin = RunOptimisation(RFStruct,grad,maskedMaps,param)
         [bAS(:,iDx),NRMSE(iDx),exitflag(iDx),output{iDx}] = runAS(bVE(:,iDx),RFStruct,maskedMaps,param,AFull);
     end
     [~, minIndex] = min(NRMSE);
-    toc
+    TimeIntverval = toc;
         bmin = bAS(1:8,minIndex).*exp(1i*bAS(9:16,minIndex));
     disp('Complete')
+    
 end
 %%
 function plot_stacked_hist_all(Sim_FA_array)
@@ -862,7 +881,7 @@ function plot_stacked_hist_all(Sim_FA_array)
         %Sim_FA_cell{ii,5} = Sim_FA_array(ii).VERSE_relax_10;
     end
     %YLIM = [0 150;0 150;0 150;0 150;0 400];
-    TitleStr = {'Gaussian CP','Gaussian Shimmed','VERSE Shimmed','VERSE relaxed by 2','VERSE relaxed by 10'};
+    TitleStr = {sprintf('Gaussian\nCP Mode'),sprintf('Gaussian\nShimmed'),sprintf('VERSE\nShimmed')};
     EDGES = 0:0.5:25;
     for ii = 1:size(Sim_FA_cell,2)
         temp = {Sim_FA_cell{1,ii},Sim_FA_cell{2,ii},Sim_FA_cell{3,ii},...
@@ -873,8 +892,8 @@ function plot_stacked_hist_all(Sim_FA_array)
         
         figure(401)
         set(gcf,'color','w','InvertHardcopy','off')
-        set(gcf,'units','centimeters','position',[4 4 30 30],'paperunits',...
-            'centimeters','paperposition',[0 0 30 30])
+        set(gcf,'units','centimeters','position',[4 4 57 25],'paperunits',...
+            'centimeters','paperposition',[0 0 57 25])
         colormat =    [0.2078    0.1843    0.5294;
                        0.1804    0.6824    0.6706;
                        1         0.549     0];
@@ -886,19 +905,25 @@ function plot_stacked_hist_all(Sim_FA_array)
         [n4] = histcounts(FA_cell{4},EDGES);
         [n5] = histcounts(FA_cell{5},EDGES);
         centres = EDGES(1:(end-1)) + diff(EDGES);
-        subplot(3,1,Order)
+        subplot(3,2,(Order-1)*2+1)
         H = bar(centres,[n1.' n2.' n3.' n4.' n5.'],'stacked','barwidth',1,'edgecolor','k','linewidth',0.01);
         if (Order ~= 3)
             set(gca,'xtick',[])
         else
-            xlabel('Flip-angle (°)','FontSize',15)
+            xlabel('Flip-angle (°)')
         end
         box off
-        LGD = legend('Subject 1','Subject 2','Subject 3','Subject 4','Subject 5');
-        LGD.FontSize = 13;
+        set(gca,'FontSize',18)
+        if Order == 1
+            LGD = legend('Subject 1','Subject 2','Subject 3','Subject 4','Subject 5');
+            LGD.FontSize = 16;
+        end
         xlim([0 25])
         ylim([0 150])
-        text(0.5,130,TitleStr{Order},'FontSize',15,'FontWeight','Bold')
+        ylabel(sprintf('# of Voxels'))
+        text(0.5,130,TitleStr{Order},'FontSize',18)
+        Annotations = {'a','b','c'};
+        text(-4,160,Annotations{Order},'FontSize',23,'FontWeight','Bold')
     end
 end
 %%
@@ -1176,4 +1201,113 @@ set(gca,'FontSize',23,'FontWeight','Bold')
 ylabel('tSNR')
 set(gcf,'color','w','InvertHardcopy','off')
 set(gcf,'units','centimeters','position',[4 4 72 24],'paperunits','centimeters','paperposition',[4 4 72 24])
+end
+%%
+function PlotPulseDesign(plotRolArray,plotCowArray,row,FullImage,maskedMaps,ImgToPlot,SliceIdx)
+figure(92)
+set(gcf,'color','w','InvertHardcopy','off')
+set(gcf,'units','centimeters','position',[4 4 60 30],'paperunits','centimeters','paperposition',[0 0 60 30])
+clf
+PlotFALim = [0 20]; FontSize = 22;   CLB = cell(10,1);   CLBFontSize = 18;
+Figs = cell(4,3);
+%B0
+Figs{3,1} = subplot(3,2,5); 
+imagesc(ImgToPlot.b0(plotRolArray,plotCowArray,SliceIdx)',[-200 200]); 
+ylabel('B0 Map','FontSize',FontSize,'FontWeight','bold');axis off;hold on;
+%Figs{3,1}.YLabel.Visible = 'on';
+CLB{2} = colorbar('FontSize',CLBFontSize);
+CLB{2}.YLabel.String = 'Hz';    CLB{2}.YLabel.Rotation = 0;
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+% TOF
+Figs{1,1} = subplot(3,2,1); 
+imagesc(maskedMaps.localiser(plotRolArray,plotCowArray,SliceIdx)'); 
+ylabel('TOF image','FontSize',FontSize,'FontWeight','bold');axis off;colormap(Figs{1,1},'gray')
+%Figs{1,1}.YLabel.Visible = 'on';
+hold on
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+hp3 = get(subplot(3,2,1),'Position');
+set(Figs{1,1},'Position',[hp3(1) hp3(2) Figs{3,1}.Position(3) hp3(4)]);
+% B1
+Figs{2,1} = subplot(3,2,3);
+imagesc(ImgToPlot.b1CP(plotRolArray,plotCowArray,SliceIdx)',[0 5]); 
+ylabel('DREAM B1 Map','FontSize',FontSize,'FontWeight','bold');axis off;
+%Figs{2,1}.YLabel.Visible = 'on';
+CLB{1} = colorbar('FontSize',CLBFontSize);
+CLB{1}.YLabel.String = 'Hz/V';    CLB{1}.YLabel.Rotation = 0;     
+CLB{1}.YLabel.Position = [0.5 5.7 0];   set(CLB{1},'XTick',[0 2 4]);
+hold on;colormap(Figs{2,1},'gray')
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+nudge(Figs{2,1},[0 0.05 0 0])
+   
+%CLB{2}.YLabel.Position = [0 235 0];clc
+CLB{2}.YLabel.Position = [0.5 252 0];
+colormap(Figs{3,1},'gray')
+visboundaries(maskedMaps.mask(plotRolArray,plotCowArray,SliceIdx)','Color','r','LineWidth',0.4,...
+    'EnhanceVisibility', true,'LineStyle','-');axis off;
+nudge(Figs{3,1},[0 0.1 0 0])
+
+
+
+HoriOffset = 0.038;
+Figs{1,2} = subplot(3,2,2);
+imagesc(FullImage.CP(plotRolArray,plotCowArray)',PlotFALim); axis off;
+title('Flip angle maps','FontSize',FontSize);
+
+
+Figs{2,2} = subplot(3,2,4);
+imagesc(FullImage.verse(plotRolArray,plotCowArray)',PlotFALim);axis off;
+nudge(Figs{2,2},[0 0.05 0 0]);
+
+Figs{3,2} = subplot(3,2,6);
+imagesc(FullImage.AS(plotRolArray,plotCowArray)',PlotFALim);axis off;
+set(Figs{3,2},'Position',[Figs{3,2}.Position(1) Figs{3,2}.Position(2) Figs{3,2}.Position(3) Figs{3,2}.Position(4)]);
+nudge(Figs{3,2},[0 0.1 0 0])
+
+
+ ToChop = 12;
+      plotRowArrayReduced = [row(1):(((row(1)+row(end))/2)-ToChop) (ceil((row(1)+row(end))/2)+ToChop):row(end)];
+ FA_map_positions = cell(3,1);
+for iDx = 1:3
+    FA_map_positions{iDx} = get(Figs{iDx,2},'position');
+    FA_map_positions{iDx}(3) = FA_map_positions{iDx}(3)*(numel(plotRowArrayReduced)/numel(plotRolArray));
+    delete(Figs{iDx,2});
+end
+Figs{1,3} = subplot('Position',FA_map_positions{1});
+imagesc(FullImage.CP(plotRowArrayReduced,plotCowArray)',PlotFALim); axis off;
+title('Flip-angle maps','FontSize',FontSize);
+%ylabel({'Gaussian', 'CP Mode'},'FontSize',FontSize,'FontWeight','bold');
+%Figs{1,3}.YLabel.Visible = 'on';
+%set(Figs{1,3},'Position',[Figs{1,3}.Position(1) Figs{1,3}.Position(2) Figs{1,3}.Position(3) Figs{1,3}.Position(4)]);
+colormap(Figs{1,3},'hot')
+nudge(Figs{1,3},[-0.07 0 0 0]);
+%nudge(Figs{1,3},[-0.1 0 0 0]);
+%FA_map_positions{3}(4) = FA_map_positions{1}(4);
+%FA_map_positions{3}
+Figs{3,3} = subplot('Position',FA_map_positions{3});
+imagesc(FullImage.verse(plotRowArrayReduced,plotCowArray)',PlotFALim);axis off;
+%ylabel({'VERSE','Shimmed'},'FontSize',FontSize,'FontWeight','bold');
+%Figs{3,3}.YLabel.Visible = 'on';
+%
+colormap(Figs{3,3},'hot')
+set(Figs{3,3},'Position',[Figs{3,3}.Position(1) Figs{3,3}.Position(2) Figs{3,3}.Position(3) Figs{3,3}.Position(4)]);
+nudge(Figs{3,3},[-0.07 0 0 0]);
+
+Figs{2,3} = subplot('Position',FA_map_positions{2});
+imagesc(FullImage.AS(plotRowArrayReduced,plotCowArray)',PlotFALim);axis off;
+
+%ylabel({'Gaussian','Shimmed'},'FontSize',FontSize,'FontWeight','bold');
+%text(210,83,'Gaussian Shimmed','Color','k')
+%Figs{2,3}.YLabel.Visible = 'on';
+CLB{9} = colorbar('eastoutside','FontSize',CLBFontSize);
+CLB{9}.YLabel.String = 'Degrees (°)';    %CLB{9}.YLabel.Rotation = 0;   
+colormap(Figs{2,3},'hot')
+set(Figs{2,3},'Position',[Figs{3,3}.Position(1) Figs{2,3}.Position(2) Figs{3,3}.Position(3) Figs{2,3}.Position(4)]);
+%nudge(Figs{2,3},[-0.07 0 0 0])
+
+set(CLB{9},'Position',[ 0.798059964726631         0.209876543209877         0.019636684303351         0.715437545388525],...
+    'FontSize',20);
+%nudge(CLB{9},[-0.04 0 0 0])
 end
