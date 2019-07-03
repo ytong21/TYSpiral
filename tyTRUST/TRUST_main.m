@@ -1,0 +1,218 @@
+    pTxPath = '/Users/ytong/Documents/Data/7TDicom/20181105_F7T_2013_50_102';
+    dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
+    ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_90VRef__B1',...
+        'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','localizer_3D','InterpTarget',...
+        'Localiser');
+    %% Creating a mask using betted nii file
+    mask_nii = niftiread('localizer_3D_mask.nii.gz');
+    mask_nii = flip(mask_nii,2);
+    mask_nii = flip(mask_nii,3);        % Make nii consistent with matlab  
+    Slice_Array = 385-(259:-1:251);
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,2,mask_nii),true);
+    
+    %% Testing UnderSampleImage function
+    AA = ptxFMObj.getMask;
+    BB = UnderSampleImage(AA,[4 4 2]);
+    %%
+    imagesc(squeeze(BB(:,35,:)))
+    %% Load essential information
+    xz_res = 0.677;
+    y_res = 1.4;    
+    maskedMaps.b1SensMasked = UnderSampleImage(ptxFMObj.getB1PerV('uT','delete'),[4 4 2 1]);
+    maskedMaps.b0MapMasked = UnderSampleImage(ptxFMObj.getB0('Hz','delete'),[4 2 2]);
+    maskedMaps.b0MapMaskedRad = (2*pi)*maskedMaps.b0MapMasked;
+    maskedMaps.posVox = ptxFMObj.getPositions('cm','delete').';
+    maskedMaps.localiser = ptxFMObj.getLoc('none');
+    maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
+
+    
+    %% Constructing an excitation target
+    
+    PlotSingleSlice(squeeze(maskedMaps.localiser(:,Slice_Array(5),:)),xz_res,y_res,180,true);
+    maskedMaps.target = maskedMaps.mask;
+    PlotSingleSlice(squeeze(maskedMaps.localiser(:,Slice_Array(5),:)),xz_res,y_res,0,false);
+    hTmp = drawellipse; %Do not close this figure until next section
+    
+    %%
+    CircleMask = createMask(hTmp);
+    CircleMaskFiltered = imgaussfilt(single(CircleMask),2*[y_res xz_res]);
+    TargetTemp = zeros(size(maskedMaps.localiser));
+    TargetTemp = permute(TargetTemp,[1 3 2]);
+    for iDx = 1:numel(Slice_Array)
+        TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.target(:,Slice_Array(iDx),:)) + CircleMaskFiltered;
+    end
+    TargetTemp = permute(TargetTemp,[1 3 2]);
+    PlotSingleSlice(squeeze(TargetTemp(:,Slice_Array(5),:)),xz_res,y_res,180,true);
+    maskedMaps.target_masked = TargetTemp(maskedMaps.mask)-1;
+
+
+   %%
+
+   options.Gmax         = 22.0;     % [mT/m]
+   options.Smax         = 200.0;   	% YT[T/m/s]
+   options.Vmax         = 150.0;    % [V]
+   options.phi_bounds   = [   10.0000   10.0000   10.0000    2.0000    1.0000   -8.0000    0.5000 ; ...
+                                     100.0000  100.0000  100.0000    7.5000   10.0000   +8.0000    2.0000 ].';
+   options.GBF          =       struct(  'OnlyContinuousRanges',0,...
+                                                        'GradSmooth_On',1,...
+                                                        'GradSmooth_Lambda',1e-3,...
+                                                        'GradSmooth_MaxDistFac',2,...
+                                                        'verbosity',0,...
+                                                        'UseMex',0,...
+                                                        'SolverID','MinConF_SPG' );
+   %%
+   options.phi_init = [40  40  40   7    6    1    1 ].';
+   [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
+   NV = sum( R_mat(:,end) );
+   G0 = zeros( NV,1 );
+   T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
+   tyPlotTrajectory( T_init ); set(gcf,'name','Initial k-space Trajectory')
+   fprintf('Pulse duration = %.2f ms\n', T_init.t(end));
+   %plot3(kx_vec,ky_vec,kz_vec);
+   
+   %% Calculate the RF pulse using 1us resolution with VE method
+   
+   AFull = genAMatFull(1E-6*ones(numel(T_init.Sam.t),1),ones(numel(T_init.Sam.t),1),[T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',maskedMaps.b1SensMaskedHz,...
+            maskedMaps.b0MapMasked,maskedMaps.posVox);
+   %%
+   function ImgNew = UnderSampleImage(Img,UndesampleFactor)
+        % check image dimension and undersamplefactor size
+        if ndims(Img) ~= numel(UndesampleFactor)
+            disp('Image dimension and undersampling factor size do not match...')
+            return
+        end
+        if ndims(Img) == 3
+            ImgNew = Img(1:UndesampleFactor(1):end,1:UndesampleFactor(2):end,1:UndesampleFactor(3):end);
+        elseif ndims(Img) == 4
+            ImgNew = Img(1:UndesampleFactor(1):end,1:UndesampleFactor(2):end,...
+                1:UndesampleFactor(3):end,1:UndesampleFactor(4):end);
+        end
+   end
+    function PlotSingleSlice(ImgMtx,VerRes,HoriRes,Angle,bool_flip)
+        if ~(Angle == 0 || Angle == 90 || Angle == 180)
+            disp('Angle not recognised...')
+            return
+        end
+        figure
+        set(gcf,'color','w','InvertHardcopy','off')
+        if bool_flip
+            imagesc(imrotate(flip(ImgMtx,1),-Angle));
+        else
+            imagesc(imrotate(ImgMtx,-Angle));
+        end
+        if Angle == 0
+            pbaspect([HoriRes*size(ImgMtx,2) VerRes*size(ImgMtx,1) 1]);
+        elseif Angle == 90
+            pbaspect([VerRes*size(ImgMtx,1) HoriRes*size(ImgMtx,2) 1]);
+        elseif Angle == 180
+            pbaspect([HoriRes*size(ImgMtx,2) VerRes*size(ImgMtx,1) 1]);
+        end
+        axis off; colormap gray;
+    end
+    function h = tyPlotTrajectory( T, Gradient, OpenFigure )
+
+    if nargin < 3
+        OpenFigure = 1;
+    end
+    
+    if OpenFigure
+       figure
+       hold on
+       box on
+       grid on 
+    end
+
+    if nargin < 2
+       Gradient = []; 
+    end
+
+    %This method plots the trajectory, colorcoded by the velocity given by 
+    % v = sqrt( Gx^2 + Gy^2 )
+ 
+    %if vectors are very long, make them sparser
+    AimLength   = 10000;
+    Step        = numel(T.Sam.kx) / AimLength;
+    kx_plot     = T.Sam.kx(1 : ceil(Step) : end);
+    ky_plot     = T.Sam.ky(1 : ceil(Step) : end);
+    kz_plot     = T.Sam.kz(1 : ceil(Step) : end);
+    Gx_plot     = T.Sam.Gx(1 : ceil(Step) : end);
+    Gy_plot     = T.Sam.Gy(1 : ceil(Step) : end);
+    Gz_plot     = T.Sam.Gz(1 : ceil(Step) : end);
+    if Step ~= round(Step)
+        kx_plot = [ kx_plot, T.Sam.kx(end) ];
+        ky_plot = [ ky_plot, T.Sam.ky(end) ];
+        kz_plot = [ kz_plot, T.Sam.kz(end) ];
+        Gx_plot = [ Gx_plot, T.Sam.Gx(end) ];
+        Gy_plot = [ Gy_plot, T.Sam.Gy(end) ];
+        Gz_plot = [ Gz_plot, T.Sam.Gz(end) ];
+    end
+    
+    %create vector of velocitys
+    V   = sqrt( (Gx_plot(:)).^2 + (Gy_plot(:)).^2 + (Gz_plot(:)).^2 );
+    
+    %plot colorcoded trajectory
+    h = mesh([kx_plot(:), kx_plot(:)], [ky_plot(:), ky_plot(:)], [kz_plot(:), kz_plot(:)], [V V], ...
+        'EdgeColor', 'interp', 'FaceColor', 'none', 'Linewidth', 3);
+    set(gca,'Clim',[0, max(V(:))])
+    
+    kmax        = max(abs([kx_plot(:); ky_plot(:); kz_plot(:)]));
+    RelLength   = 0.2;
+    %plot gradient derivative
+    if ~isempty( Gradient )
+        if size( Gradient, 2 ) == 2
+            Gradient = [Gradient, zeros( size(Gradient,1), 1 )];
+        end
+        %normalize
+        Gradient = Gradient ./ max(abs(Gradient(:)));
+        for k = 1 : size(Gradient,1)
+           line([T.kx(k),T.kx(k) + kmax*RelLength*Gradient(k,1)], ...
+                [T.ky(k),T.ky(k) + kmax*RelLength*Gradient(k,2)], ...
+                [T.kz(k),T.kz(k) + kmax*RelLength*Gradient(k,3)], ...
+               'Color','blue','Linewidth',1.5) 
+        end
+        
+    end
+    
+    %plot control points
+    hold on
+    %hcp = PlotControlPoints( T );
+    
+    if OpenFigure
+        %LegendStrings = {'k-space Trajectory','Unconstrained','Vector Constraint','Fixed Gradients'};
+        %warning( 'off', 'MATLAB:legend:UnsupportedEdgeColor' )
+        %legend([h,hcp(~isnan(hcp))],LegendStrings( find([1,~isnan(hcp)]) ))
+        legend('k-space Trajectory')
+        %warning( 'on', 'MATLAB:legend:UnsupportedEdgeColor')
+    end
+    
+    %if z only contains zeros, assume that trajectory is only 2D, set view
+    %accordingly
+    
+  	colormap(parula)
+    t = colorbar;
+    
+    set(get(t,'ylabel'),'String', 'k-space Velocity $\|\textbf{G}\|_{2}$','Interpreter','latex','Fontsize',14,'Fontweight','bold');
+    %set(gca,'Color',[0.8 0.8 0.8])
+
+    if all( T.Sam.kz == 0 )
+        set(gca,'View',[0 90])
+	else
+        set(gca,'View',[-46 22])
+    end
+    
+    %set figure size
+    if OpenFigure
+        set(gcf,'OuterPosition',[235   222   763   742])
+        set(gcf,'Position',     [243   230   747   650])
+        
+        set(gca,'OuterPosition',[-0.1240   -0.0836    1.2193    1.1373])
+        set(gca,'Position',     [ 0.0345    0.0415    0.8370    0.9269])
+        
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gca,'FontSize',14)
+        movegui(gcf,'center')
+
+        axis equal 
+    end
+    end
+    
