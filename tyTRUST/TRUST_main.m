@@ -2,47 +2,47 @@
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_90VRef__B1',...
         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','localizer_3D','InterpTarget',...
-        'Localiser');
+        'B0');
     %% Creating a mask using betted nii file
-    mask_nii = niftiread('localizer_3D_mask.nii.gz');
+    mask_nii = niftiread('B0_mask.nii.gz');
     mask_nii = flip(mask_nii,2);
-    mask_nii = flip(mask_nii,3);        % Make nii consistent with matlab  
-    Slice_Array = 385-(259:-1:251);
-    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,2,mask_nii),true);
     
-    %% Testing UnderSampleImage function
-    AA = ptxFMObj.getMask;
-    BB = UnderSampleImage(AA,[4 4 2]);
     %%
-    imagesc(squeeze(BB(:,35,:)))
+    Slice_Array = 39;
+    ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,3,mask_nii),true);
+    
+
     %% Load essential information
-    xz_res = 0.677;
-    y_res = 1.4;    
-    maskedMaps.b1SensMasked = UnderSampleImage(ptxFMObj.getB1PerV('uT','delete'),[4 4 2 1]);
-    maskedMaps.b0MapMasked = UnderSampleImage(ptxFMObj.getB0('Hz','delete'),[4 2 2]);
+    xz_res = 4;
+    y_res = 4;    
+    maskedMaps.b1SensMasked = ptxFMObj.getB1PerV('uT','delete');
+    maskedMaps.b0MapMasked = ptxFMObj.getB0('Hz','delete');
     maskedMaps.b0MapMaskedRad = (2*pi)*maskedMaps.b0MapMasked;
     maskedMaps.posVox = ptxFMObj.getPositions('cm','delete').';
     maskedMaps.localiser = ptxFMObj.getLoc('none');
     maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
-
-    
+    maskedMaps.b0 = ptxFMObj.getB0('Hz','NaN');
+    maskedMaps.mask = ptxFMObj.getMask();
     %% Constructing an excitation target
     
-    PlotSingleSlice(squeeze(maskedMaps.localiser(:,Slice_Array(5),:)),xz_res,y_res,180,true);
-    maskedMaps.target = maskedMaps.mask;
-    PlotSingleSlice(squeeze(maskedMaps.localiser(:,Slice_Array(5),:)),xz_res,y_res,0,false);
+    PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array)),xz_res,y_res,90,true);
+    
+    PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array)),xz_res,y_res,0,false);
     hTmp = drawellipse; %Do not close this figure until next section
     
     %%
     CircleMask = createMask(hTmp);
-    CircleMaskFiltered = imgaussfilt(single(CircleMask),2*[y_res xz_res]);
-    TargetTemp = zeros(size(maskedMaps.localiser));
-    TargetTemp = permute(TargetTemp,[1 3 2]);
+    CircleMaskFiltered = imgaussfilt(single(CircleMask),[1 1]);
+    %%
+    TargetTemp = zeros(size(maskedMaps.b0));
     for iDx = 1:numel(Slice_Array)
-        TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.target(:,Slice_Array(iDx),:)) + CircleMaskFiltered;
+        TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.mask(:,:,Slice_Array(iDx))) + CircleMaskFiltered;
     end
-    TargetTemp = permute(TargetTemp,[1 3 2]);
-    PlotSingleSlice(squeeze(TargetTemp(:,Slice_Array(5),:)),xz_res,y_res,180,true);
+    
+    %%
+    
+    PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
+    %%
     maskedMaps.target_masked = TargetTemp(maskedMaps.mask)-1;
 
 
@@ -71,9 +71,81 @@
    %plot3(kx_vec,ky_vec,kz_vec);
    
    %% Calculate the RF pulse using 1us resolution with VE method
-   
-   AFull = genAMatFull(1E-6*ones(numel(T_init.Sam.t),1),ones(numel(T_init.Sam.t),1),[T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',maskedMaps.b1SensMaskedHz,...
+   Gradient = 425.77*downsample([T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',10);
+   Time_Vec = downsample(T_init.Sam.t,10);
+   AFull = genAMatFull(1E-6*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
+    param.targetFlipAngle = 90;
+    param.numCh = 8;
+    param.CGtikhonov = 1e-6;
+    %%
+    ALambda_e6 = pinv(AFull'*AFull + param.CGtikhonov*eye(size(AFull,2)))*AFull';
+    %ALambda_e7 = pinv(AFull'*AFull + 1e-7*eye(size(AFull,2)))*AFull';
+
+    ALambda_e3 = pinv(AFull'*AFull + 1e-3*eye(size(AFull,2)))*AFull';
+%%
+ALambda_e8 = pinv(AFull'*AFull + 1e-8*eye(size(AFull,2)))*AFull';
+
+    %%
+    [bOut,finalRMSE,finalPwr,finalMag] = run_variable_exchange(AFull,param,maskedMaps,Slice_Array,ALambda_e7);
+    
+    %% Plotting the target and final mag
+    close all
+    PlotSingleSlice(TargetTemp(:,:,Slice_Array),xz_res,xz_res,90,true);
+    PlotSingleSlice(abs(finalMag),xz_res,xz_res,90,true);
+    PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
+    %%
+function [bOut,finalRMSE,finalPwr,finalMag] = run_variable_exchange(AFullFunc,param,maskedMaps,Slice_Array,ALambda)
+       MaxVEIter = 200;
+    cost = inf;
+    xCurr = zeros(size(AFullFunc,2),1);
+    Tol = 0.001;    
+    %targetFAInRad = maskedMaps.TargetMasked*deg2rad(param.targetFlipAngle);
+    targetFAInRad = maskedMaps.target_masked*deg2rad(param.targetFlipAngle);
+    
+    phiTarget = angle(sum(maskedMaps.b1SensMaskedHz,2));
+    z = exp(1i*phiTarget);
+    mask_1_slice = maskedMaps.mask(:,:,Slice_Array);
+    fullImage =  zeros(numel(mask_1_slice),1);
+    CGtikhonov = param.CGtikhonov;
+    
+
+for iDx = 1:MaxVEIter
+    
+    targetFA = z .* targetFAInRad;
+    
+%     [xs,~ ] = qpwls_pcg(xCurr, AFullFunc,1, targetM, 0, CGtikhonov, 1, cgIterations);
+%     xCurr = xs(:,end);
+    xCurr = ALambda*targetFA;
+    currFA = AFullFunc*xCurr;
+    costNew = norm(currFA - targetFA) + CGtikhonov*(xCurr'*xCurr);
+    
+    costDiff = abs(cost-costNew)/cost;
+    if costDiff < Tol
+        break
+    end
+    cost = costNew;
+    
+    % Smooth phase
+    fullImage(logical(mask_1_slice(:))) = angle(currFA);
+    fullImage = reshape(fullImage,size(mask_1_slice));
+    fullImage = imgaussfilt(fullImage,2,'FilterSize',5);
+        
+    phiTarget = fullImage(mask_1_slice(:));
+    z = exp(1i*phiTarget);    
+end
+    bOut = xCurr;
+    finalPwr = norm(xCurr);
+    %finalCost = costNew;
+    %finalCost = cost;
+        finalMag = zeros(numel(mask_1_slice),1);
+        finalMag(logical(mask_1_slice(:))) = AFullFunc*xCurr;
+        finalMag = reshape(finalMag,size(mask_1_slice));
+
+    %finalRMSE = norm(currFA - targetFA);
+    finalRMSE = norm(abs(currFA) - abs(targetFA))/norm(abs(targetFA));
+
+end
    %%
    function ImgNew = UnderSampleImage(Img,UndesampleFactor)
         % check image dimension and undersamplefactor size
