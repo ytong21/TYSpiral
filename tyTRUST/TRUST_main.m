@@ -1,3 +1,4 @@
+    %% Load in the data and interporlate to B0
     pTxPath = '/Users/ytong/Documents/Data/7TDicom/20181105_F7T_2013_50_102';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_90VRef__B1',...
@@ -7,11 +8,10 @@
     mask_nii = niftiread('B0_mask.nii.gz');
     mask_nii = flip(mask_nii,2);
     
-    %%
+    %% Specify the slice number and make a mask
     Slice_Array = 39;
     ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,3,mask_nii),true);
-    
-
+   
     %% Load essential information
     xz_res = 4;
     y_res = 4;    
@@ -23,10 +23,10 @@
     maskedMaps.b1SensMaskedHz = ptxFMObj.getB1PerV('Hz','delete');
     maskedMaps.b0 = ptxFMObj.getB0('Hz','NaN');
     maskedMaps.mask = ptxFMObj.getMask();
+    maskedMaps.mask_one_slice = maskedMaps.mask(:,:,Slice_Array);
     %% Constructing an excitation target
     
     PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array)),xz_res,y_res,90,true);
-    
     PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array)),xz_res,y_res,0,false);
     hTmp = drawellipse; %Do not close this figure until next section
     
@@ -38,11 +38,7 @@
     for iDx = 1:numel(Slice_Array)
         TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.mask(:,:,Slice_Array(iDx))) + CircleMaskFiltered;
     end
-    
-    %%
-    
     PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
-    %%
     maskedMaps.target_masked = TargetTemp(maskedMaps.mask)-1;
 
 
@@ -75,28 +71,33 @@
    Time_Vec = downsample(T_init.Sam.t,10);
    AFull = genAMatFull(1E-6*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
+   %% Building ALambda matrix. This is time-consuming. This is taken outside of the VE function
     param.targetFlipAngle = 90;
     param.numCh = 8;
-    param.CGtikhonov = 1e-6;
+    param.tol = 1e-5;
+    %param.CGtikhonov = 1e-6;
+    tikhonovArray = power(10,-7:1:-4);
+    ALambda_cell = cell(size(tikhonovArray));
     %%
-    ALambda_e6 = pinv(AFull'*AFull + param.CGtikhonov*eye(size(AFull,2)))*AFull';
-    %ALambda_e7 = pinv(AFull'*AFull + 1e-7*eye(size(AFull,2)))*AFull';
-
-    ALambda_e3 = pinv(AFull'*AFull + 1e-3*eye(size(AFull,2)))*AFull';
-%%
-ALambda_e8 = pinv(AFull'*AFull + 1e-8*eye(size(AFull,2)))*AFull';
-
+    for iDx = 1:numel(tikhonovArray)
+        ALambda_cell{iDx} = pinv(AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))*AFull';
+    end
+    OutCell = cell(size(tikhonovArray));
     %%
-    [bOut,finalRMSE,finalPwr,finalMag] = run_variable_exchange(AFull,param,maskedMaps,Slice_Array,ALambda_e7);
-    
+    for iDx = 1:numel(tikhonovArray)
+        param.CGtikhonov = tikhonovArray(iDx);
+        OutCell{iDx} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{iDx});
+    end
     %% Plotting the target and final mag
     close all
     PlotSingleSlice(TargetTemp(:,:,Slice_Array),xz_res,xz_res,90,true);
     PlotSingleSlice(abs(finalMag),xz_res,xz_res,90,true);
     PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
     %%
-function [bOut,finalRMSE,finalPwr,finalMag] = run_variable_exchange(AFullFunc,param,maskedMaps,Slice_Array,ALambda)
-       MaxVEIter = 200;
+    out = run_active_set(OutCell{1}.bOut,maskedMaps,param,AFull);
+    %%
+function out = run_variable_exchange(AFullFunc,param,maskedMaps,ALambda)
+    MaxVEIter = 500;
     cost = inf;
     xCurr = zeros(size(AFullFunc,2),1);
     Tol = 0.001;    
@@ -105,17 +106,13 @@ function [bOut,finalRMSE,finalPwr,finalMag] = run_variable_exchange(AFullFunc,pa
     
     phiTarget = angle(sum(maskedMaps.b1SensMaskedHz,2));
     z = exp(1i*phiTarget);
-    mask_1_slice = maskedMaps.mask(:,:,Slice_Array);
+    mask_1_slice = maskedMaps.mask_one_slice;
     fullImage =  zeros(numel(mask_1_slice),1);
     CGtikhonov = param.CGtikhonov;
     
-
 for iDx = 1:MaxVEIter
-    
     targetFA = z .* targetFAInRad;
-    
-%     [xs,~ ] = qpwls_pcg(xCurr, AFullFunc,1, targetM, 0, CGtikhonov, 1, cgIterations);
-%     xCurr = xs(:,end);
+
     xCurr = ALambda*targetFA;
     currFA = AFullFunc*xCurr;
     costNew = norm(currFA - targetFA) + CGtikhonov*(xCurr'*xCurr);
@@ -144,7 +141,45 @@ end
 
     %finalRMSE = norm(currFA - targetFA);
     finalRMSE = norm(abs(currFA) - abs(targetFA))/norm(abs(targetFA));
+    out.bOut = bOut;
+    out.finalPwr = finalPwr;
+    out.finalMag = finalMag;
+    out.finalRMSE = finalRMSE;
+end
+function out = run_active_set(bVE,maskedMaps,param,AFull)
+    %Setting upper and lower bounds
+    maxV = 239; % Check where I got this.
+    clear ub lb
+    ub(1:numel(bVE)) = maxV;
+    ub((1+numel(bVE)):(numel(bVE)*2)) = inf;
 
+    lb(1:numel(bVE)) = 0;
+    lb((1+numel(bVE)):(numel(bVE)*2)) = -inf;
+
+    %Setting optimization options
+
+    optionsFMin = optimoptions(@fmincon);
+    optionsFMin.Algorithm = 'interior-point';
+    optionsFMin.Display = 'iter';
+    optionsFMin.MaxFunctionEvaluations = 40000;
+    optionsFMin.SpecifyConstraintGradient = false;
+    optionsFMin.OptimalityTolerance = param.tol;
+    %optionsFMin.FiniteDifferenceType = 'central';
+    optionsFMin.MaxIterations = 40000;
+    nonlincon = [];
+    xInitial = [abs(bVE);angle(bVE)];
+    targetFA = maskedMaps.target_masked*deg2rad(param.targetFlipAngle);
+    FunHandle = @(x) norm(abs(AFull*(x( 1:numel(bVE)).*exp(1i*x((numel(bVE)+1):numel(bVE)*2))))...
+        - abs(targetFA))/norm(abs(targetFA));
+    [bOutTemp,out.fval,out.exitflag,out.output] = fmincon(FunHandle,xInitial,[],[],[],[],...
+        lb.',ub.',nonlincon,optionsFMin);
+    
+    out.bOut = bOutTemp(1:numel(bVE)).*exp(1i*bOutTemp((numel(bVE)+1):numel(bVE)*2));
+    mask_1_slice = maskedMaps.mask_one_slice;
+    finalMag = zeros(numel(mask_1_slice),1);
+    finalMag(logical(mask_1_slice(:))) = AFull*out.bOut;
+    finalMag = reshape(finalMag,size(mask_1_slice));
+    out.finalMag = finalMag;
 end
    %%
    function ImgNew = UnderSampleImage(Img,UndesampleFactor)
