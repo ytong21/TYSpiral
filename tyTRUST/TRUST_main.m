@@ -62,6 +62,7 @@
    NV = sum( R_mat(:,end) );
    G0 = zeros( NV,1 );
    T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
+   %%
    tyPlotTrajectory( T_init ); set(gcf,'name','Initial k-space Trajectory')
    fprintf('Pulse duration = %.2f ms\n', T_init.t(end));
    %plot3(kx_vec,ky_vec,kz_vec);
@@ -83,10 +84,12 @@
         ALambda_cell{iDx} = pinv(AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))*AFull';
     end
     OutCell = cell(size(tikhonovArray));
-    %%
+    
     for iDx = 1:numel(tikhonovArray)
+       
         param.CGtikhonov = tikhonovArray(iDx);
         OutCell{iDx} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{iDx});
+        
     end
     %% Plotting the target and final mag
     close all
@@ -94,7 +97,10 @@
     PlotSingleSlice(abs(finalMag),xz_res,xz_res,90,true);
     PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
     %%
-    out = run_active_set(OutCell{1}.bOut,maskedMaps,param,AFull);
+    [U1,S1,V1] = svd(AFull);
+    SysMat_SVD.U = U1(:,1:100); SysMat_SVD.S = S1(1:100,1:100); SysMat_SVD.V = V1(1:100,:)';
+    %%
+    out = run_active_set(OutCell{1}.bOut,maskedMaps,param,SysMat_SVD);
     %%
 function out = run_variable_exchange(AFullFunc,param,maskedMaps,ALambda)
     MaxVEIter = 500;
@@ -146,7 +152,7 @@ end
     out.finalMag = finalMag;
     out.finalRMSE = finalRMSE;
 end
-function out = run_active_set(bVE,maskedMaps,param,AFull)
+function out = run_active_set(bVE,maskedMaps,param,SysMat_SVD)
     %Setting upper and lower bounds
     maxV = 239; % Check where I got this.
     clear ub lb
@@ -161,15 +167,31 @@ function out = run_active_set(bVE,maskedMaps,param,AFull)
     optionsFMin = optimoptions(@fmincon);
     optionsFMin.Algorithm = 'interior-point';
     optionsFMin.Display = 'iter';
-    optionsFMin.MaxFunctionEvaluations = 40000;
+    optionsFMin.MaxFunctionEvaluations = 1e5;
     optionsFMin.SpecifyConstraintGradient = false;
-    optionsFMin.OptimalityTolerance = param.tol;
-    %optionsFMin.FiniteDifferenceType = 'central';
-    optionsFMin.MaxIterations = 40000;
+    optionsFMin.OptimalityTolerance = 1e-6;
+    optionsFMin.StepTolerance = 1e-6;
+    optionsFMin.FiniteDifferenceType = 'central';
+    optionsFMin.MaxIterations = 20;
+    optionsFMin.SubproblemAlgorithm = 'cg';
+    fmincon_options = optimoptions(	'fmincon', ...
+                        'MaxFunEvals',10^5,...
+                        'TolFun',1e-6,...
+                        'TolCon',1e-6,...
+                        'TolX',1e-6,...
+                        'MaxIter',20,...
+                        'Algorithm','interior-point',...
+                        'GradObj','on',...
+                        'GradConstr','on',...
+                        'SubproblemAlgorithm','cg',...
+                        'Display','iter'...
+                        );
     nonlincon = [];
     xInitial = [abs(bVE);angle(bVE)];
     targetFA = maskedMaps.target_masked*deg2rad(param.targetFlipAngle);
-    FunHandle = @(x) norm(abs(AFull*(x( 1:numel(bVE)).*exp(1i*x((numel(bVE)+1):numel(bVE)*2))))...
+    FunHandle = @(x) norm(abs(SysMat_SVD.U*SysMat_SVD.S*SysMat_SVD.V'...
+        *(x( 1:numel(bVE)).*...
+        exp(1i*x((numel(bVE)+1):numel(bVE)*2))))...
         - abs(targetFA))/norm(abs(targetFA));
     [bOutTemp,out.fval,out.exitflag,out.output] = fmincon(FunHandle,xInitial,[],[],[],[],...
         lb.',ub.',nonlincon,optionsFMin);
