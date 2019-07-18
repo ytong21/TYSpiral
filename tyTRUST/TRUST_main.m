@@ -9,7 +9,7 @@
     mask_nii = flip(mask_nii,2);
     
     %% Specify the slice number and make a mask
-    Slice_Array = 39;
+    Slice_Array = 35:44;
     ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,3,mask_nii),true);
    
     %% Load essential information
@@ -38,7 +38,8 @@
     for iDx = 1:numel(Slice_Array)
         TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.mask(:,:,Slice_Array(iDx))) + CircleMaskFiltered;
     end
-    PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
+    %%
+    %PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
     maskedMaps.target_masked = TargetTemp(maskedMaps.mask)-1;
 
 
@@ -70,8 +71,10 @@
    %% Calculate the RF pulse using 1us resolution with VE method
    Gradient = 425.77*downsample([T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',10);
    Time_Vec = downsample(T_init.Sam.t,10);
-   AFull = genAMatFull(1E-5*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
+   %% AFull magnetisation per V
+   AFullMag = genAMatFull(1E-5*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
+   AFull = asin(AFullMag);
    %% Extending the RF pulse while keeping the number of points the same.
    Time_Vec_extended = Time_Vec*2;
    AFull_Extended = genAMatFull(1E-5*ones(numel(Time_Vec_extended),1),ones(numel(Time_Vec_extended),1),Gradient,maskedMaps.b1SensMaskedHz,...
@@ -81,7 +84,7 @@
     param.numCh = 8;
     param.tol = 1e-5;
     %param.CGtikhonov = 1e-6;
-    tikhonovArray = power(10,-9:1:-5);
+    tikhonovArray = power(10,-6:1:-5);
     ALambda_cell = cell(size(tikhonovArray));
     %% 
     % run time: "\" < lsqminnorm < pinv
@@ -109,6 +112,37 @@
     %%  
     out_singval = run_SingVal(OutCell{3}.bOut,maskedMaps,param,AFull);
     
+    %%
+    run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag)
+    %%
+    function run_comparison_plot(target,result)
+        figure(222)
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 50 20],'paperunits','centimeters','paperposition',[4 4 50 20])
+        %slice_array = 35:2:44;
+        result_to_plot_array = 1:2:10;
+        for iDx = 1:5
+        ax1 = subplot(2,5,iDx);
+        imagesc(imrotate(rad2deg(abs(result(:,:,result_to_plot_array(iDx)))),-90),[0 120]);
+        TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
+        TT.FontSize = 16;
+        axis off;colormap(ax1, 'hot');
+        if iDx == 5
+            CLB1 = colorbar('FontSize',18);nudge(CLB1,[0.04 0 0.01 0]);
+        end
+        ax2 = subplot(2,5,iDx+5);
+        imagesc(imrotate(abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-90*target,-90),[-15 15]);
+        TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
+        TT.FontSize = 16;
+        axis off; colormap(ax2, 'parula');
+        if iDx == 5
+            CLB1 = colorbar('FontSize',18);nudge(CLB1,[0.04 0 0.01 0]);
+        end
+
+        end
+        
+        
+    end
     %%
 function out = run_variable_exchange(AFullFunc,param,maskedMaps,ALambda)
     MaxVEIter = 500;
