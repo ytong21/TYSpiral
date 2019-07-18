@@ -70,26 +70,29 @@
    %% Calculate the RF pulse using 1us resolution with VE method
    Gradient = 425.77*downsample([T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',10);
    Time_Vec = downsample(T_init.Sam.t,10);
-   AFull = genAMatFull(1E-6*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
+   AFull = genAMatFull(1E-5*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
+            maskedMaps.b0MapMasked,maskedMaps.posVox);
+   %% Extending the RF pulse while keeping the number of points the same.
+   Time_Vec_extended = Time_Vec*2;
+   AFull_Extended = genAMatFull(1E-5*ones(numel(Time_Vec_extended),1),ones(numel(Time_Vec_extended),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
    %% Building ALambda matrix. This is time-consuming. This is taken outside of the VE function
     param.targetFlipAngle = 90;
     param.numCh = 8;
     param.tol = 1e-5;
     %param.CGtikhonov = 1e-6;
-    tikhonovArray = power(10,-7:1:-4);
+    tikhonovArray = power(10,-9:1:-5);
     ALambda_cell = cell(size(tikhonovArray));
-    %%
+    %% 
+    % run time: "\" < lsqminnorm < pinv
     for iDx = 1:numel(tikhonovArray)
-        ALambda_cell{iDx} = pinv(AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))*AFull';
+        ALambda_cell{iDx} = ((AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))\sparse(eye(5984)))...
+            *AFull';
     end
     OutCell = cell(size(tikhonovArray));
-    
     for iDx = 1:numel(tikhonovArray)
-       
         param.CGtikhonov = tikhonovArray(iDx);
         OutCell{iDx} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{iDx});
-        
     end
     %% Plotting the target and final mag
     close all
@@ -98,9 +101,14 @@
     PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
     %%
     [U1,S1,V1] = svd(AFull);
-    SysMat_SVD.U = U1(:,1:100); SysMat_SVD.S = S1(1:100,1:100); SysMat_SVD.V = V1(1:100,:)';
     %%
-    out = run_active_set(OutCell{1}.bOut,maskedMaps,param,SysMat_SVD);
+    SysMat_SVD.U = U1(:,1:600); SysMat_SVD.S = sparse(S1(1:600,1:600)); SysMat_SVD.V = V1(:,1:600);
+    %%
+    out = run_active_set(OutCell{3}.bOut,maskedMaps,param,SysMat_SVD);
+    
+    %%  
+    out_singval = run_SingVal(OutCell{3}.bOut,maskedMaps,param,AFull);
+    
     %%
 function out = run_variable_exchange(AFullFunc,param,maskedMaps,ALambda)
     MaxVEIter = 500;
@@ -152,6 +160,37 @@ end
     out.finalMag = finalMag;
     out.finalRMSE = finalRMSE;
 end
+function out = run_SingVal(bVE,maskedMaps,param,AFull)
+    bMatrix = reshape(bVE,[68 88]);
+    [U,S,V] = svd(bMatrix,'econ');
+    %U1 = U(:,1:30); S1 = S(1:30,1:30); V1 = V(:,1:30);
+    %diagS1 = diag(S1);
+    %xInitial = rand(30,1)*2*sum(diagS1)/30;
+    xInitial = diag(S);
+    xInitial = xInitial + 5*(rand(size(xInitial))-0.5);
+    targetFA = maskedMaps.target_masked*deg2rad(param.targetFlipAngle);
+    FunHandle = @(x) norm(abs(AFull*reshape(U*diag(x)*V',[5984 1]))-abs(targetFA))...
+        /norm(abs(targetFA));
+    A = ones(1,numel(xInitial));
+    b = sum(xInitial);
+    lb = zeros(1,numel(xInitial));
+    optionsFMin = optimoptions(@fmincon);
+    optionsFMin.Algorithm = 'sqp';
+    optionsFMin.Display = 'iter';
+    optionsFMin.MaxFunctionEvaluations = 1e5;
+    optionsFMin.SpecifyConstraintGradient = false;
+    optionsFMin.OptimalityTolerance = 1e-10;
+    optionsFMin.StepTolerance = 1e-10;
+    optionsFMin.DiffMinChange = 5;
+    optionsFMin.FunctionTolerance = 1e-10;
+    optionsFMin.FiniteDifferenceType = 'central';
+    optionsFMin.MaxIterations = 500;
+    optionsFMin.SubproblemAlgorithm = 'cg';
+    [SingVal,out.fval,out.exitflag,out.output] = fmincon(FunHandle,xInitial,A,b,[],[],...
+        lb.',[],[],optionsFMin);
+    out.SingVal = diag(SingVal);
+end
+%%
 function out = run_active_set(bVE,maskedMaps,param,SysMat_SVD)
     %Setting upper and lower bounds
     maxV = 239; % Check where I got this.
@@ -189,9 +228,9 @@ function out = run_active_set(bVE,maskedMaps,param,SysMat_SVD)
     nonlincon = [];
     xInitial = [abs(bVE);angle(bVE)];
     targetFA = maskedMaps.target_masked*deg2rad(param.targetFlipAngle);
-    FunHandle = @(x) norm(abs(SysMat_SVD.U*SysMat_SVD.S*SysMat_SVD.V'...
+    FunHandle = @(x) norm(abs(SysMat_SVD.U*(SysMat_SVD.S*(SysMat_SVD.V'...
         *(x( 1:numel(bVE)).*...
-        exp(1i*x((numel(bVE)+1):numel(bVE)*2))))...
+        exp(1i*x((numel(bVE)+1):numel(bVE)*2))))))...
         - abs(targetFA))/norm(abs(targetFA));
     [bOutTemp,out.fval,out.exitflag,out.output] = fmincon(FunHandle,xInitial,[],[],[],[],...
         lb.',ub.',nonlincon,optionsFMin);
