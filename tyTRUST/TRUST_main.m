@@ -26,8 +26,10 @@
     maskedMaps.mask_one_slice = maskedMaps.mask(:,:,Slice_Array);
     %% Constructing an excitation target
     
-    PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array)),xz_res,y_res,90,true);
-    PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array)),xz_res,y_res,0,false);
+    PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array(5))),xz_res,y_res,90,true);
+    %%
+    PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array(5))),xz_res,y_res,0,false);
+    %%
     hTmp = drawellipse; %Do not close this figure until next section
     
     %%
@@ -80,7 +82,7 @@
    AFull_Extended = genAMatFull(1E-5*ones(numel(Time_Vec_extended),1),ones(numel(Time_Vec_extended),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
    %% Building ALambda matrix. This is time-consuming. This is taken outside of the VE function
-    param.targetFlipAngle = 90;
+    param.targetFlipAngle = 180;
     param.numCh = 8;
     param.tol = 1e-5;
     %param.CGtikhonov = 1e-6;
@@ -113,7 +115,20 @@
     out_singval = run_SingVal(OutCell{3}.bOut,maskedMaps,param,AFull);
     
     %%
-    run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag)
+    run_comparison_plot(CircleMaskFiltered,OutCell{2}.finalMag)
+    %%
+    RF_pulse = reshape(OutCell{2}.bOut,[748 8]);
+    figure(223)
+    for iDx = 1:8
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 60 30],'paperunits','centimeters','paperposition',[4 4 60 30])
+        subplot(2,4,iDx)
+        plot((1:748)/100,abs(RF_pulse(:,iDx)));ylim([0 300])
+        title(sprintf('Channel %d',iDx))
+        xlabel('Time (ms)')
+        ylabel('Voltage (V)')
+        set(gca,'FontSize',16)
+    end
     %%
     function run_comparison_plot(target,result)
         figure(222)
@@ -123,7 +138,7 @@
         result_to_plot_array = 1:2:10;
         for iDx = 1:5
         ax1 = subplot(2,5,iDx);
-        imagesc(imrotate(rad2deg(abs(result(:,:,result_to_plot_array(iDx)))),-90),[0 120]);
+        imagesc(imrotate(rad2deg(abs(result(:,:,result_to_plot_array(iDx)))),-90),[0 180]);
         TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
         TT.FontSize = 16;
         axis off;colormap(ax1, 'hot');
@@ -131,7 +146,7 @@
             CLB1 = colorbar('FontSize',18);nudge(CLB1,[0.04 0 0.01 0]);
         end
         ax2 = subplot(2,5,iDx+5);
-        imagesc(imrotate(abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-90*target,-90),[-15 15]);
+        imagesc(imrotate(abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-180*target,-90),[-20 20]);
         TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
         TT.FontSize = 16;
         axis off; colormap(ax2, 'parula');
