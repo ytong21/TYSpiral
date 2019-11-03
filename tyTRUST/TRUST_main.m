@@ -38,11 +38,11 @@
     %%
     TargetTemp = zeros(size(maskedMaps.b0));
     for iDx = 1:numel(Slice_Array)
-        TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.mask(:,:,Slice_Array(iDx))) + CircleMaskFiltered;
+        TargetTemp(:,:,Slice_Array(iDx)) = squeeze(maskedMaps.mask(:,:,Slice_Array(iDx))) - CircleMaskFiltered;
     end
     %%
     %PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
-    maskedMaps.target_masked = TargetTemp(maskedMaps.mask)-1;
+    maskedMaps.target_masked = TargetTemp(maskedMaps.mask);
 
 
    %%
@@ -60,7 +60,7 @@
                                                         'UseMex',0,...
                                                         'SolverID','MinConF_SPG' );
    %%
-   options.phi_init = [40  40  40   7    6    1    1 ].';
+   options.phi_init = [40  40  20   7    6    1    1 ].';
    [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
    NV = sum( R_mat(:,end) );
    G0 = zeros( NV,1 );
@@ -72,6 +72,8 @@
    
    %% Calculate the RF pulse using 1us resolution with VE method
    Gradient = 425.77*downsample([T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',10);
+   %from mT/m to Hz/cm 
+   % downsample from 1us raster to 10us
    Time_Vec = downsample(T_init.Sam.t,10);
    %% AFull magnetisation per V
    AFullMag = genAMatFull(1E-5*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
@@ -82,23 +84,32 @@
    AFull_Extended = genAMatFull(1E-5*ones(numel(Time_Vec_extended),1),ones(numel(Time_Vec_extended),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
    %% Building ALambda matrix. This is time-consuming. This is taken outside of the VE function
-    param.targetFlipAngle = 180;
+    param.targetFlipAngle = 90;
     param.numCh = 8;
     param.tol = 1e-5;
     %param.CGtikhonov = 1e-6;
-    tikhonovArray = power(10,-6:1:-5);
+    tikhonovArray = power(10,-6:1:-4);
     ALambda_cell = cell(size(tikhonovArray));
     %% 
     % run time: "\" < lsqminnorm < pinv
     for iDx = 1:numel(tikhonovArray)
-        ALambda_cell{iDx} = ((AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))\sparse(eye(5984)))...
+        ALambda_cell{iDx} = ((AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))\sparse(eye(5736)))...
             *AFull';
     end
+    %%
     OutCell = cell(size(tikhonovArray));
     for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
+        
         OutCell{iDx} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{iDx});
+        %OutCell{3} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{3});
     end
+    
+    %% Write the pulse into .ini file
+    rfIn = reshape(OutCell{2}.bOut,[numel(OutCell{2}.bOut)/8 8]);
+    gradIn = Gradient;
+    writeIniFile(rfIn,gradIn)
+    
     %% Plotting the target and final mag
     close all
     PlotSingleSlice(TargetTemp(:,:,Slice_Array),xz_res,xz_res,90,true);
@@ -109,49 +120,76 @@
     %%
     SysMat_SVD.U = U1(:,1:600); SysMat_SVD.S = sparse(S1(1:600,1:600)); SysMat_SVD.V = V1(:,1:600);
     %%
-    out = run_active_set(OutCell{3}.bOut,maskedMaps,param,SysMat_SVD);
+    out = run_active_set(OutCell{2}.bOut,maskedMaps,param,AFull);
     
     %%  
-    out_singval = run_SingVal(OutCell{3}.bOut,maskedMaps,param,AFull);
+    out_singval = run_SingVal(OutCell{2}.bOut,maskedMaps,param,AFull);
     
     %%
-    run_comparison_plot(CircleMaskFiltered,OutCell{2}.finalMag)
+    run_comparison_plot(CircleMaskFiltered,OutCell{2}.finalMag,maskedMaps)
     %%
-    RF_pulse = reshape(OutCell{2}.bOut,[748 8]);
+    RF_pulse = reshape(OutCell{2}.bOut,[numel(OutCell{2}.bOut)/8 8]);
     figure(223)
     for iDx = 1:8
         set(gcf,'color','w','InvertHardcopy','off')
         set(gcf,'units','centimeters','position',[4 4 60 30],'paperunits','centimeters','paperposition',[4 4 60 30])
         subplot(2,4,iDx)
-        plot((1:748)/100,abs(RF_pulse(:,iDx)));ylim([0 300])
+        plot((1:numel(OutCell{2}.bOut)/8)/100,abs(RF_pulse(:,iDx)),'LineWidth',1.2);ylim([0 280])
         title(sprintf('Channel %d',iDx))
         xlabel('Time (ms)')
         ylabel('Voltage (V)')
         set(gca,'FontSize',16)
     end
+    
     %%
-    function run_comparison_plot(target,result)
+    figure(224)
+    RF_pulse = reshape(OutCell{1}.bOut,[numel(OutCell{2}.bOut)/8 8]);
+    set(gcf,'units','centimeters','position',[4 4 13 60],'paperunits','centimeters','paperposition',[4 4 13 60])
+
+    RF_2_plot = [0; abs(RF_pulse(123:137,1)); 0];
+    plot(RF_2_plot,'k','LineWidth',10)
+    set(gcf,'color','w','InvertHardcopy','off')
+    
+    axis off
+    %%
+    function run_comparison_plot(circle,result,maskedMaps)
         figure(222)
         set(gcf,'color','w','InvertHardcopy','off')
-        set(gcf,'units','centimeters','position',[4 4 50 20],'paperunits','centimeters','paperposition',[4 4 50 20])
+        set(gcf,'units','centimeters','position',[4 4 35 30],'paperunits','centimeters','paperposition',[4 4 35 30])
         %slice_array = 35:2:44;
+        
         result_to_plot_array = 1:2:10;
         for iDx = 1:5
         ax1 = subplot(2,5,iDx);
-        imagesc(imrotate(rad2deg(abs(result(:,:,result_to_plot_array(iDx)))),-90),[0 180]);
-        TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
-        TT.FontSize = 16;
-        axis off;colormap(ax1, 'hot');
+        FAmap = rad2deg(abs(result(:,:,result_to_plot_array(iDx))));
+        FAmap([1:11 end-5:end],:) = [];
+        imagesc(imrotate(FAmap,-90),[0 100]);
+        %TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
+        %TT.FontSize = 16;
+        axis image; axis off;colormap(ax1, 'hot');
+        text(2,4,sprintf('Slice %d FA',result_to_plot_array(iDx)),'Color','w','FontSize',16);
         if iDx == 5
-            CLB1 = colorbar('FontSize',18);nudge(CLB1,[0.04 0 0.01 0]);
+            CLB1 = colorbar('FontSize',18);nudge(CLB1,[0.05 -0.048 0.01 0.095]);
+            set(get(CLB1,'Title'),'String','deg')
+            %ax1_pos = get(ax1,'position');
+            %CLB1.Position(4) = ax1_pos(4);
+            %CLB1.Position(2) = ax1_pos(2);
         end
         ax2 = subplot(2,5,iDx+5);
-        imagesc(imrotate(abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-180*target,-90),[-20 20]);
-        TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
-        TT.FontSize = 16;
-        axis off; colormap(ax2, 'parula');
+        target = squeeze(maskedMaps.mask_one_slice(:,:,result_to_plot_array(iDx))) - circle;
+        diff = abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-90*target;
+        diff(diff == 0) = -inf;
+        diff([1:11 end-5:end],:) = [];
+        imagesc(imrotate(diff,-90),[-10 10]);
+        %TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
+        %TT.FontSize = 16;
+        axis image; axis off; 
+        nudge(ax2,[0 0.1 0 0]);
+        text(2,4,sprintf('Slice %d Diff',result_to_plot_array(iDx)),'Color','w','FontSize',16);
+        colormap(ax2, 'hot');
         if iDx == 5
-            CLB1 = colorbar('FontSize',18);nudge(CLB1,[0.04 0 0.01 0]);
+            CLB2 = colorbar('FontSize',18);nudge(CLB2,[0.05 -0.048 0.01 0.095]);
+            set(get(CLB2,'Title'),'String','deg')
         end
 
         end
@@ -240,7 +278,7 @@ function out = run_SingVal(bVE,maskedMaps,param,AFull)
     out.SingVal = diag(SingVal);
 end
 %%
-function out = run_active_set(bVE,maskedMaps,param,SysMat_SVD)
+function out = run_active_set(bVE,maskedMaps,param,AFull)
     %Setting upper and lower bounds
     maxV = 239; % Check where I got this.
     clear ub lb
@@ -262,24 +300,24 @@ function out = run_active_set(bVE,maskedMaps,param,SysMat_SVD)
     optionsFMin.FiniteDifferenceType = 'central';
     optionsFMin.MaxIterations = 20;
     optionsFMin.SubproblemAlgorithm = 'cg';
-    fmincon_options = optimoptions(	'fmincon', ...
-                        'MaxFunEvals',10^5,...
-                        'TolFun',1e-6,...
-                        'TolCon',1e-6,...
-                        'TolX',1e-6,...
-                        'MaxIter',20,...
-                        'Algorithm','interior-point',...
-                        'GradObj','on',...
-                        'GradConstr','on',...
-                        'SubproblemAlgorithm','cg',...
-                        'Display','iter'...
-                        );
+%     fmincon_options = optimoptions(	'fmincon', ...
+%                         'MaxFunEvals',10^5,...
+%                         'TolFun',1e-6,...
+%                         'TolCon',1e-6,...
+%                         'TolX',1e-6,...
+%                         'MaxIter',20,...
+%                         'Algorithm','interior-point',...
+%                         'GradObj','on',...
+%                         'GradConstr','on',...
+%                         'SubproblemAlgorithm','cg',...
+%                         'Display','iter'...
+%                         );
     nonlincon = [];
     xInitial = [abs(bVE);angle(bVE)];
     targetFA = maskedMaps.target_masked*deg2rad(param.targetFlipAngle);
-    FunHandle = @(x) norm(abs(SysMat_SVD.U*(SysMat_SVD.S*(SysMat_SVD.V'...
-        *(x( 1:numel(bVE)).*...
-        exp(1i*x((numel(bVE)+1):numel(bVE)*2))))))...
+    FunHandle = @(x) norm(abs(AFull...
+        *(x(1:numel(bVE)).*...
+        exp(1i*x((numel(bVE)+1):numel(bVE)*2))))...
         - abs(targetFA))/norm(abs(targetFA));
     [bOutTemp,out.fval,out.exitflag,out.output] = fmincon(FunHandle,xInitial,[],[],[],[],...
         lb.',ub.',nonlincon,optionsFMin);
@@ -305,6 +343,7 @@ end
                 1:UndesampleFactor(3):end,1:UndesampleFactor(4):end);
         end
    end
+   %%
     function PlotSingleSlice(ImgMtx,VerRes,HoriRes,Angle,bool_flip)
         if ~(Angle == 0 || Angle == 90 || Angle == 180)
             disp('Angle not recognised...')
@@ -370,7 +409,11 @@ end
     %plot colorcoded trajectory
     h = mesh([kx_plot(:), kx_plot(:)], [ky_plot(:), ky_plot(:)], [kz_plot(:), kz_plot(:)], [V V], ...
         'EdgeColor', 'interp', 'FaceColor', 'none', 'Linewidth', 3);
-    set(gca,'Clim',[0, max(V(:))])
+%     h = mesh([kx_plot(end-1000:end), kx_plot(end-1000:end)], [ky_plot(end-1000:end), ky_plot(end-1000:end)],...
+%         [kz_plot(end-1000:end), kz_plot(end-1000:end)], [V(end-1000:end) V(end-1000:end)], ...
+%         'EdgeColor', 'interp', 'FaceColor', 'none', 'Linewidth', 3);
+    %set(gca,'Clim',[0, max(V(:))])
+    set(gca,'Clim',[0, 20])
     
     kmax        = max(abs([kx_plot(:); ky_plot(:); kz_plot(:)]));
     RelLength   = 0.2;
@@ -405,31 +448,134 @@ end
     %if z only contains zeros, assume that trajectory is only 2D, set view
     %accordingly
     
-  	colormap(parula)
+  	colormap(hot)
     t = colorbar;
-    
-    set(get(t,'ylabel'),'String', 'k-space Velocity $\|\textbf{G}\|_{2}$','Interpreter','latex','Fontsize',14,'Fontweight','bold');
+    nudge(t,[0.04 0 0 0]);
+    set(get(t,'ylabel'),'String', 'k-space Velocity $\|\textbf{G}\|_{2}$',...
+        'Interpreter','latex','Fontsize',18,'Fontweight','bold');
     %set(gca,'Color',[0.8 0.8 0.8])
-
+    xlabel('k_x (m^{-1})','Position',[-10 -50 -25]);ylabel('k_y (m^{-1})','Position',[-50 0 -25]);
+    zlabel('k_z (m^{-1})','Rotation',0,'Position',[-45 40 28]);
     if all( T.Sam.kz == 0 )
         set(gca,'View',[0 90])
 	else
         set(gca,'View',[-46 22])
     end
-    
+    zticks([-20 0 20]);
+    %zlim([-30 30])
     %set figure size
     if OpenFigure
         set(gcf,'OuterPosition',[235   222   763   742])
         set(gcf,'Position',     [243   230   747   650])
         
         set(gca,'OuterPosition',[-0.1240   -0.0836    1.2193    1.1373])
-        set(gca,'Position',     [ 0.0345    0.0415    0.8370    0.9269])
+        set(gca,'Position',     [ 0.0345+0.05    0.0415+0.015    0.8370-0.05    0.9269])
+        
+        
         
         set(gcf,'color','w','InvertHardcopy','off')
-        set(gca,'FontSize',14)
-        movegui(gcf,'center')
+        set(gca,'FontSize',18)
+        %movegui(gcf,'center')
 
-        axis equal 
+        %axis equal 
     end
     end
-    
+function writeIniFile(rfIn,gradIn)
+% From WTC writeIniFile.m
+% Write an arbitrary pulse to the ini format that is expected by the
+% SBBExcitationPTx class
+% The pulse will be written to the local folder X
+% If the scanner drives are mounted the pulse will be written to them.
+% If the VM RFPulses shared folder is mounted it will also be written
+% there.
+% A matlab .mat file of the final pulse will also be written to Y
+
+% Input:- rfIn: NxChannels array of complex transmit voltages
+%       - gradIn: Nx3 array of gradient amplitudes. In Hz/cm
+%       - sampleTime: Duration of each X step. In us.
+% Comment
+% Output:
+
+
+%This code will apply the shift of gradient dimensions, make sure that this
+%is not done before this function!
+%% Checks
+if size(gradIn,2) ~=3
+    error('gradIn should be Nx3 array.')
+end
+
+if size(gradIn,1)~=size(rfIn,1)
+    % YT addition: do not allow for different RF/grad vector sizes
+    error('The number of gradient steps must be an integer multiple of the rf samples.') % From the docs: Oversampling (optional): The RF oversamping factor. In other words, the number of RF samples per gradient sample. This parameter is optional and read as one if not present. Its valid range is from 1 to 10 (integer).
+end
+
+%% Do the gradient switch
+% This is from the dicom coordinate system to an identity rotation matrix
+% (HFS)
+gradSwitched = gradIn(:,[2 1 3]);
+gradSwitched(:,2) = -1*gradSwitched(:,2);
+%% Units
+GAMMA = 42.57E6; % Hz/T 
+
+% Gradients from Hz/cm to mT/m
+gmag_mTm = 1000*(gradSwitched*100)/GAMMA;
+writeGrad_mTm = gmag_mTm;
+
+% Normalise the RF
+peakV = max(abs(rfIn(:)));
+writeRfAmp = abs(rfIn)/peakV; %Scale the amplitude from 0 to 1;
+writeRfPhase = angle(rfIn)+pi; % Scale phase from 0 to 2pi
+
+numsamples = size(rfIn,1);  %YT change
+%% Write the file
+
+fID = fopen('/Users/ytong/Documents/XP/pTxPulses/pTxArbitrary.ini','w');
+fprintf(fID,'# Created in run_STA_KTPdesign.m \n');
+fprintf(fID,'[pTXPulse]\n');
+fprintf(fID,'\n');
+fprintf(fID,'NUsedChannels        = %i\n',8);		
+fprintf(fID,'MaxAbsRF             = %0.3f	# peak RF voltage [V]\n',peakV);
+fprintf(fID,'Samples              = %i		# number of samples\n',numsamples);
+fprintf(fID,'PulseName            = pTxArbitrary\n');
+fprintf(fID,'Comment              = pTx pulse\n');
+fprintf(fID,'Oversampling         = %i		# no oversampling\n',1);
+fprintf(fID,'NominalFlipAngle     = %i		# flip-angle of this pulse if played out with 502.385V peak voltage\n',10);
+fprintf(fID,'SampleTime			 = 10\n');
+
+% Gradient
+fprintf(fID,'\n');
+fprintf(fID,'[Gradient]\n');
+fprintf(fID,'\n');
+for iDx = 1:size(writeGrad_mTm,1)
+    fprintf(fID,'G[%i]= %f %f %f\n',iDx-1,writeGrad_mTm(iDx,1),writeGrad_mTm(iDx,2),writeGrad_mTm(iDx,3));
+end
+fprintf(fID,'\n');
+
+% RF
+for jDx = 1:size(writeRfAmp,2)
+    fprintf(fID,'[pTXPulse_ch%i]\n',jDx-1);
+    fprintf(fID,'\n');
+    for iDx = 1:size(writeRfAmp,1)
+        fprintf(fID,'RF[%i]=  %f\t%f\n',iDx-1,writeRfAmp(iDx,jDx),writeRfPhase(iDx,jDx));
+    end
+    fprintf(fID,'\n');
+end
+
+fclose(fID);
+
+%% Write out matlab copy of parameters as well
+save('/Users/ytong/Documents/XP/pTxPulses/pTxArbitrary.mat','peakV','writeRfAmp','writeRfPhase','writeGrad_mTm')
+
+%% Copy to scanner
+if isfolder('/Volumes/Disk_C')
+    copyfile('/Users/ytong/Documents/XP/pTxPulses/pTxArbitrary.ini','/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTxArbitrary.ini')
+end
+if isfolder('/Volumes/Disk_C-1')
+    copyfile('/Users/ytong/Documents/XP/pTxPulses/pTxArbitrary.ini','/Volumes/Disk_C-1/MedCom/MriCustomer/seq/RFPulses/pTxArbitrary.ini')
+end
+% %% Copy to VM
+% YT not entirely sure what this is
+% if isfolder('/Volumes/RFPulses')
+%    copyfile('/Users/wclarke/Documents/VMShared/pTxArbitrary.ini','/Volumes/RFPulses/pTxArbitrary.ini')
+% end 
+end
