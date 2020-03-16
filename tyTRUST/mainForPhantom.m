@@ -335,6 +335,18 @@ function out = run_active_set(bVE,maskedMaps,param,AFull)
     finalMag = reshape(finalMag,size(mask_1_slice));
     out.finalMag = finalMag;
 end
+function [RFOut,GradOut] = AdjustDelay(RFIn, GradIn, Diff)
+DiffIn10us = Diff/10;
+% Positive Diff = RF starts earlier;
+if DiffIn10us>0
+    RFOut = RFIn;
+    GradOut = [zeros(1,DiffIn10us),GradIn];
+    
+elseif DiffIn10us<0
+    RFOut = [zeros(1,-DiffIn10us),RFIn];
+    GradOut = GradIn;
+end
+end
    %%
    function ImgNew = UnderSampleImage(Img,UndesampleFactor)
         % check image dimension and undersamplefactor size
