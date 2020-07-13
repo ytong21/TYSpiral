@@ -1,20 +1,40 @@
     %% Load in the data and interporlate to B0
-    pTxPath = '/Volumes/Data/DICOM/2019-11/20191105_Phantom1';
+    pTxPath = '/Users/ytong/Documents/Data/TRUST/20200707/20200707_Phantom_0707';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_90VRef__B1',...
         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','localizer','InterpTarget',...
         'B0');
-    dicm2nii(pTxPath,'/Users/ytong/Documents/Data/20191105_Phantom1_nii')
+    %%
+    nii_dir = '/Users/ytong/Documents/Data/TRUST/20200316_nii';
+    dicm2nii(pTxPath,'/Users/ytong/Documents/Data/TRUST/20200316_nii')
+    
+    %% prep steps for fsl
+    PATH = getenv('PATH');
+    setenv('PATH', [PATH ':/usr/local/bin:/usr/local/fsl/bin']);
+    setenv('FSLOUTPUTTYPE','NIFTI_GZ')
+    setenv('FSLMULTIFILEQUIT','TRUE')
+    setenv('FSLTCLSH','/usr/local/fsl/bin/fsltclsh')
+    setenv('FSLWISH','/usr/local/fsl/bin/fslwish')
+    setenv('FSLDIR','/usr/local/fsl')
     %% Creating a mask using betted nii file
     %B0_nii = niftiread('/Users/ytong/Documents/Data/20191105_B0_nii/OilPhantom.nii.gz');
     %B0_Hz_nii = niftiread('/Users/ytong/Documents/Data/20191105_B0_nii/dt_fieldmap_ptx7t_iso4mm_trans_RL_s007.nii.gz');
     % For some reason the second dimension is flipped
     % This is established by comparing B0_Hz_nii and ptxFMObj.getB0Raw()
-    mask_nii = niftiread('/Users/ytong/Documents/Data/20191105_Phantom1_nii/OilPhantom_mask.nii.gz');
+    
+    % fsl cannot handle .gz and it nees to be decompressed
+    B0_filename = 'dt_fieldmap_ptx7t_iso4mm_trans_RL_s034.nii.gz';
+    %gunzip(B0_filename);
+    system(sprintf('bet %s%s%s %s -m','/Users/ytong/Documents/Data/TRUST/20200316_nii',...
+        filesep,strcat(nii_dir, filesep,'OilPhan0316.nii'),...
+        'OilPhan0316'));
+    
+    %%
+    mask_nii = niftiread('/Users/ytong/Documents/Data/TRUST/20200707/0707_nii/0707_mask.nii.gz');
     mask_nii = flip(mask_nii,2);
     
     %% Specify the slice number and make a mask
-    Slice_Array = 35:44;
+    Slice_Array = 31:40;
     ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,3,mask_nii),true);
     
     %ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,3,mask_nii),true);
@@ -31,6 +51,16 @@
     maskedMaps.b0 = ptxFMObj.getB0('Hz','NaN');
     maskedMaps.mask = ptxFMObj.getMask();
     maskedMaps.mask_one_slice = maskedMaps.mask(:,:,Slice_Array);
+    
+    %% Solve the issue of NANs in b1 map
+    [Nan_Row, Nan_Col] = find(isnan(maskedMaps.b1SensMaskedHz));
+    for iDx = 1:numel(Nan_Row)
+        maskedMaps.b1SensMaskedHz(Nan_Row(iDx),Nan_Col(iDx)) = ...
+            maskedMaps.b1SensMaskedHz(Nan_Row(iDx)-1,Nan_Col(iDx));
+        maskedMaps.b1SensMasked(Nan_Row(iDx),Nan_Col(iDx)) = ...
+            maskedMaps.b1SensMasked(Nan_Row(iDx)-1,Nan_Col(iDx));
+    end
+    
     %% Constructing an excitation target
     
     PlotSingleSlice(squeeze(maskedMaps.b0(:,:,Slice_Array(5))),xz_res,y_res,90,true);
@@ -50,8 +80,24 @@
     %%
     %PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
     maskedMaps.target_masked = TargetTemp(maskedMaps.mask);
-
-
+    % maskedMaps.target_masked is the target mag in the slices in interest
+    % most of them will be 1, few voxes will be close to 0;
+    
+    %% creating a mask for the ROI whose blood T2 we are interested in
+    
+    maskedMaps.ROImask = zeros(size(maskedMaps.b0));
+    for iDx = 1:numel(Slice_Array)
+        maskedMaps.ROImask(:,:,Slice_Array(iDx)) = CircleMaskFiltered;
+    end
+    maskedMaps.ROImask = logical(maskedMaps.ROImask);
+    %%
+    temp1 = ptxFMObj.getB0('Hz','none');        % Hz
+    MLEVRoi.b0 = temp1(maskedMaps.ROImask);
+    temp2 = ptxFMObj.getB1PerV('Hz','none');    % Hz/V
+    for iDx = 1:size(temp2,4)
+        temp3 = temp2(:,:,:,iDx);
+        MLEVRoi.b1(:,iDx) = temp3(maskedMaps.ROImask);
+    end
    %%
 
    options.Gmax         = 22.0;     % [mT/m]
@@ -113,7 +159,7 @@
     %% Plotting the target and final mag
     close all
     PlotSingleSlice(TargetTemp(:,:,Slice_Array),xz_res,xz_res,90,true);
-    PlotSingleSlice(abs(finalMag),xz_res,xz_res,90,true);
+    PlotSingleSlice(abs(OutCell{1}.finalMag),xz_res,xz_res,90,true);
     PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
     %%
     [U1,S1,V1] = svd(AFull);
@@ -126,13 +172,36 @@
     out_singval = run_SingVal(OutCell{2}.bOut,maskedMaps,param,AFull);
     
     %%
-    run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps)
+    run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps);
     %%
       %% Write the pulse into .ini file
+    %rfIn = 1.2*reshape(OutCell{1}.bOut,[numel(OutCell{1}.bOut)/8 8]);
     rfIn = reshape(OutCell{1}.bOut,[numel(OutCell{1}.bOut)/8 8]);
     gradIn = Gradient;
-    writeIniFile(rfIn,gradIn)
     
+    %%
+    writeIniFile_ty(rfIn,gradIn)
+    
+    %%
+    rfIn_2us=zeros(size(rfIn,1)*2,size(rfIn,2));
+    for iDx = 1:size(rfIn,2)
+        rfIn_2us(:,iDx) = interp(rfIn(:,iDx),2);
+    end
+    
+    %[RFTest,GradTest] = AdjustDelay(rfIn_2us, gradIn, -10);
+    writeIniFile_ty(rfIn_2us,gradIn);
+    
+    %%    %%
+    rfIn_10us=zeros(size(rfIn,1)*10,size(rfIn,2));
+    for iDx = 1:size(rfIn,2)
+        rfIn_10us(:,iDx) = interp(rfIn(:,iDx),10);
+    end
+    
+    %[RFTest,GradTest] = AdjustDelay(rfIn_2us, gradIn, -10);
+    writeIniFile_ty(rfIn_10us,gradIn)
+    %% Change grad rf offset
+    [RFTest,GradTest] = AdjustDelay(rfIn, gradIn, 10);
+    writeIniFile_ty(RFTest,GradTest)
     %%
     RF_pulse = reshape(OutCell{1}.bOut,[numel(OutCell{1}.bOut)/8 8]);
     figure(223)
@@ -168,7 +237,7 @@
         for iDx = 1:5
         ax1 = subplot(2,5,iDx);
         FAmap = rad2deg(abs(result(:,:,result_to_plot_array(iDx))));
-        FAmap([1:11 end-5:end],:) = [];
+        %FAmap([1:11 end-5:end],:) = [];
         imagesc(imrotate(FAmap,-90),[0 100]);
         %TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
         %TT.FontSize = 16;
@@ -185,7 +254,7 @@
         target = squeeze(maskedMaps.mask_one_slice(:,:,result_to_plot_array(iDx))) - circle;
         diff = abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-90*target;
         diff(diff == 0) = -inf;
-        diff([1:11 end-5:end],:) = [];
+        %diff([1:11 end-5:end],:) = [];
         imagesc(imrotate(diff,-90),[-10 10]);
         %TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
         %TT.FontSize = 16;
@@ -339,12 +408,12 @@ function [RFOut,GradOut] = AdjustDelay(RFIn, GradIn, Diff)
 DiffIn10us = Diff/10;
 % Positive Diff = RF starts earlier;
 if DiffIn10us>0
-    RFOut = RFIn;
-    GradOut = [zeros(1,DiffIn10us),GradIn];
+    RFOut = [RFIn;zeros(DiffIn10us,8)];
+    GradOut = [zeros(DiffIn10us,3);GradIn];
     
 elseif DiffIn10us<0
-    RFOut = [zeros(1,-DiffIn10us),RFIn];
-    GradOut = GradIn;
+    RFOut = [zeros(-DiffIn10us,8);RFIn];
+    GradOut = [GradIn;zeros(-DiffIn10us,3)];
 end
 end
    %%
@@ -492,7 +561,7 @@ end
         %axis equal 
     end
     end
- function writeIniFile(rfIn,gradIn)
+ function writeIniFile_ty(rfIn,gradIn)
 % From WTC writeIniFile.m
 % Write an arbitrary pulse to the ini format that is expected by the
 % SBBExcitationPTx class
@@ -516,11 +585,21 @@ if size(gradIn,2) ~=3
     error('gradIn should be Nx3 array.')
 end
 
-if size(gradIn,1)~=size(rfIn,1)
-    % YT addition: do not allow for different RF/grad vector sizes
+
+if size(gradIn,1)==size(rfIn,1)
+   %samples = size(gradIn,1);
+   oversampling = 1;
+elseif mod(size(rfIn,1),size(gradIn,1)) == 0
+    % Integer scaling of RF samples
+    %samples = size(gradIn,1);
+    oversampling = size(rfIn,1)/size(gradIn,1);
+    
+    if oversampling>10
+        error('Permitted range for oversampling of RF is 1-10.');
+    end
+else 
     error('The number of gradient steps must be an integer multiple of the rf samples.') % From the docs: Oversampling (optional): The RF oversamping factor. In other words, the number of RF samples per gradient sample. This parameter is optional and read as one if not present. Its valid range is from 1 to 10 (integer).
 end
-
 %% Do the gradient switch
 % This is from the dicom coordinate system to an identity rotation matrix
 % (HFS)
@@ -538,7 +617,7 @@ peakV = max(abs(rfIn(:)));
 writeRfAmp = abs(rfIn)/peakV; %Scale the amplitude from 0 to 1;
 writeRfPhase = angle(rfIn)+pi; % Scale phase from 0 to 2pi
 
-numsamples = size(rfIn,1);  %YT change
+numsamples = size(gmag_mTm,1);  %YT change
 %% Write the file
 
 fID = fopen('/Users/ytong/Documents/XP/pTxPulses/pTXArbitrary.ini','w');
@@ -550,7 +629,7 @@ fprintf(fID,'MaxAbsRF             = %0.3f	# peak RF voltage [V]\n',peakV);
 fprintf(fID,'Samples              = %i		# number of samples\n',numsamples);
 fprintf(fID,'PulseName            = pTxArbitrary\n');
 fprintf(fID,'Comment              = pTx pulse\n');
-fprintf(fID,'Oversampling         = %i		# no oversampling\n',1);
+fprintf(fID,'Oversampling         = %i		# no oversampling\n',oversampling);
 fprintf(fID,'NominalFlipAngle     = %i		# flip-angle of this pulse if played out with 502.385V peak voltage\n',10);
 fprintf(fID,'SampleTime			 = 10\n');
 
@@ -591,4 +670,35 @@ end
 %    copyfile('/Users/wclarke/Documents/VMShared/pTxArbitrary.ini','/Volumes/RFPulses/pTxArbitrary.ini')
 % end 
 end
-    
+%%
+function RFShimWriteMLEV(RFToWrite)
+%Write the file
+
+    fID = fopen('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyTRUST/MLEVShim.ini','w');
+    fprintf(fID,'# Created in .m \n');
+    fprintf(fID,'[pTXPulse]\n');
+    fprintf(fID,'\n');
+    fprintf(fID,'NUsedChannels        = %i\n',8);		
+    fprintf(fID,'NShims               = %i\n',1);
+    fprintf(fID,'PulseName            = MLEVShim\n');
+    fprintf(fID,'Comment              = Shim for MLEV pulse\n');
+
+
+    % RF
+    for jDx = 1:8
+        fprintf(fID,'[pTXPulse_ch%i]\n',jDx-1);
+        fprintf(fID,'\n');
+        fprintf(fID,'RF[%i]=  %f\t%f\n',0,RFToWrite(jDx,1),RFToWrite(jDx,2));
+        fprintf(fID,'\n');
+    end
+
+    fclose(fID);
+    if isfolder('/Volumes/Disk_C')
+        copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyTRUST/MLEVShim.ini',...
+            '/Volumes/Disk_C/MedCom/MriCustomer/seq/RFPulses/pTXArbitrary.ini')
+    end
+    if isfolder('/Volumes/Disk_C-1')
+        copyfile('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyTRUST/MLEVShim.ini',...
+            '/Volumes/Disk_C-1/MedCom/MriCustomer/seq/RFPulses/pTXArbitrary.ini')
+    end
+end
