@@ -1,17 +1,22 @@
     %% Load in the data and interporlate to B0
-    pTxPath = '/Volumes/Data/DICOM/2019-11/20191106_F7T_2013_50_123';
+    pTxPath = '/Users/ytong/Documents/Data/TRUST/20191106_F7T_2013_50_123';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_90VRef__B1',...
         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','localizer','InterpTarget',...
         'B0');
-    dicm2nii(pTxPath,'/Users/ytong/Documents/Data/2013_50_123_nii')
+    %%
+    dicm2nii(pTxPath,'Users/ytong/Documents/Data/TRUST/2013_50_132_nii')
 
     %% Creating a mask using betted nii file
-    mask_nii = niftiread('/Users/ytong/Documents/Data/2013_50_123_nii/B0_mask.nii.gz');
+    mask_nii = niftiread('/Users/ytong/Documents/Data/TRUST/2013_50_123_nii/B0_mask.nii.gz');
     mask_nii = flip(mask_nii,2);
     
+    %%
+    mask_nii_f08 = niftiread('/Users/ytong/Documents/Data/TRUST/2013_50_123_nii/B0_f08_mask.nii.gz');
+    mask_nii_f08 = flip(mask_nii_f08,2);
     %% Specify the slice number and make a mask
-    Slice_Array = 32:41;
+    %Slice_Array = 32:41;
+    Slice_Array = 35:44;
     ptxFMObj.createMask(@(x) DicomFM.maskFunctions.TRUST_mask(x,Slice_Array,3,mask_nii),true);
    
     %% Load essential information
@@ -90,11 +95,11 @@
     param.numCh = 8;
     param.tol = 1e-5;
     %param.CGtikhonov = 1e-6;
-    tikhonovArray = power(10,-6:1:-4);
+    tikhonovArray = power(10,-6);
     ALambda_cell = cell(size(tikhonovArray));
     %% 
     % run time: "\" < lsqminnorm < pinv
-    for iDx = 3:numel(tikhonovArray)
+    for iDx = 1:numel(tikhonovArray)
         ALambda_cell{iDx} = ((AFull'*AFull + tikhonovArray(iDx)*eye(size(AFull,2)))\sparse(eye(5736)))...
             *AFull';
     end
@@ -102,7 +107,7 @@
     OutCell = cell(size(tikhonovArray));
     
     %%
-    for iDx = 3:numel(tikhonovArray)
+    for iDx = 1:numel(tikhonovArray)
         param.CGtikhonov = tikhonovArray(iDx);
         
         OutCell{iDx} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{iDx});
@@ -133,7 +138,31 @@
     out_singval = run_SingVal(OutCell{2}.bOut,maskedMaps,param,AFull);
     
     %%
-    run_comparison_plot(CircleMaskFiltered,OutCell_ext{3}.finalMag,maskedMaps,TargetTemp)
+    run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps,TargetTemp,mask_nii)
+    
+    %%
+    TRUST_nii = zeros(64,64,5);
+    nii_slice_array = 32:2:40;
+    for iDxx = 1:5
+        FileName = strcat('/Users/ytong/Documents/Data/TRUST/2013_50_123_nii/',num2str(nii_slice_array(iDxx)),'_masked.nii.gz');
+        nii_tmp = niftiread(FileName);
+        TRUST_nii(:,:,iDxx) = imrotate(nii_tmp,90);
+    end
+    %%
+    TRUST_img = [TRUST_nii(:,:,1),TRUST_nii(:,:,2),TRUST_nii(:,:,3);...
+        TRUST_nii(:,:,4),TRUST_nii(:,:,5),zeros(64,64)];
+    %%
+    plot_b1_b0_scatter(maskedMaps);
+    %%
+    figure;set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 30 20],'paperunits','centimeters','paperposition',[4 4 30 20])
+        imagesc(TRUST_img);axis image;colormap gray;axis off
+    
+    text(2,4,sprintf('Slice %d',1),'Color','w','FontSize',20);
+    text(2+64,4,sprintf('Slice %d',3),'Color','w','FontSize',20);
+    text(2+64*2,4,sprintf('Slice %d',5),'Color','w','FontSize',20);
+    text(2,4+64,sprintf('Slice %d',7),'Color','w','FontSize',20);
+    text(2+64,4+64,sprintf('Slice %d',9),'Color','w','FontSize',20);
     %%
     RF_pulse = reshape(OutCell{2}.bOut,[numel(OutCell{2}.bOut)/8 8]);
     figure(223)
@@ -197,8 +226,56 @@
 %             'Location','southeast');
         nudge(SP2,[-0.05 0 0 0]);        
 %         nudge(LDG2,[0.08 0.013 0 0]);
-    %%
-    function run_comparison_plot(circle,result,maskedMaps,TargetTemp)
+%%
+plot_b1_b0_hist(maskedMaps);
+%%
+function plot_b1_b0_hist(maskedMaps)
+	b0 = maskedMaps.b0MapMasked;                %Hz
+    b1CP = abs(sum(maskedMaps.b1SensMaskedHz,2));    %Hz/V
+    set(gcf,'color','w','InvertHardcopy','off')
+    figure(447)
+    subplot(2,1,1)
+    histogram(b0,'FaceColor',[0.9290 0.6940 0.1250]);
+    xlabel('B_{0} (Hz)')
+    box off
+    set(gca,'FontSize',16,'YTickLabel',[]);
+    subplot(2,1,2)
+    histogram(b1CP,'FaceColor',[0.8500 0.3250 0.0980]);
+    xlabel('B_{1} (Hz/V)')
+    box off
+    set(gca,'FontSize',16,'YTickLabel',[]);
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 30 20],'paperunits','centimeters','paperposition',[4 4 30 20])
+end
+%% 
+function plot_b1_b0_scatter(maskedMaps)
+    
+	b0 = maskedMaps.b0MapMasked;                %Hz
+    b1CP = abs(sum(maskedMaps.b1SensMaskedHz,2));    %Hz/V
+    figure(446);scatter(abs(b1CP),b0,'MarkerEdgeColor',[0 .5 .5],...
+        'LineWidth',1.5);
+    xlabel('B_{1} (Hz/V)')
+    ylabel('B_{0} (Hz)')
+    b0_pct = zeros(2,1);
+    b0_pct(1) = prctile(b0,5);
+    b0_pct(2) = prctile(b0,95);
+    b1_pct = zeros(2,1);
+    b1_pct(1) = prctile(b1CP,5);
+    b1_pct(2) = prctile(b1CP,95);  
+    line([b1_pct(1) b1_pct(1)],[-400 600],'LineWidth',3,'Color',[0.8500 0.3250 0.0980]);
+    line([b1_pct(2) b1_pct(2)],[-400 600],'LineWidth',3,'Color',[0.8500 0.3250 0.0980]);
+    line([1 8],[b0_pct(1) b0_pct(1)],'LineWidth',3,'Color',[0.9290 0.6940 0.1250]);
+    line([1 8],[b0_pct(2) b0_pct(2)],'LineWidth',3,'Color',[0.9290 0.6940 0.1250]);
+    text(1.2,b0_pct(1)-30,'\uparrow 5th percentile','FontSize',20)
+    text(1.2,b0_pct(2)+30,'\downarrow 95th percentile','FontSize',20)
+    text(b1_pct(1)-1.55,520,'5th percentile\rightarrow ','FontSize',20)
+    text(b1_pct(2)-1.65,520,'95th percentile\rightarrow ','FontSize',20)
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gca,'FontSize',20)
+    set(gcf,'units','centimeters','position',[4 4 30 30],'paperunits','centimeters','paperposition',[4 4 30 30])
+end
+%%
+    function run_comparison_plot(circle,result,maskedMaps,TargetTemp,mask_nii_f08)
         figure(222)
         set(gcf,'color','w','InvertHardcopy','off')
         set(gcf,'units','centimeters','position',[4 4 30 30],'paperunits','centimeters','paperposition',[4 4 30 30])
@@ -208,51 +285,67 @@
         for iDx = 1:5
             ax1 = subplot(3,5,iDx);
             Target = 90*(abs(TargetTemp(:,:,slice_array(iDx))));
-            Target([1:11 end-5:end],:) = [];
-            imagesc(imrotate(Target,-90),[0 100]);
+            Target = Target.*double(mask_nii_f08(:,:,slice_array(iDx)));
+            Target([1:8 end-8:end],:) = [];
+            %imagesc(imrotate(Target,-90),[0 100]);
+            imagesc(Target.',[0 100]);
+            if iDx ==1
+                ylabel('Target','FontSize',16,'FontWeight','bold');ax1.YLabel.Visible = 'on';
+            end
             %TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
             %TT.FontSize = 16;
             axis image; axis off;colormap(ax1, 'hot');
-            text(2,4,sprintf('Slice %d Target',result_to_plot_array(iDx)),'Color','w','FontSize',16);
+            text(2,4,sprintf('Slice %d',result_to_plot_array(iDx)),'Color','w','FontSize',16);
             if iDx == 5
                 CLB1 = colorbar('FontSize',16,'Ticks',[0,50,100],...
                     'TickLabels',{'0°','50°','100°'});
                 nudge(CLB1,[0.06 -0.049 0.012 0.1]);
-                %set(get(CLB1,'Title'),'String','deg')
+                set(get(CLB1,'Title'),'String','FA')
             end
             
             
             ax2 = subplot(3,5,iDx+5);
             FAmap = rad2deg(abs(result(:,:,result_to_plot_array(iDx))));
-            FAmap([1:11 end-5:end],:) = [];
-            imagesc(imrotate(FAmap,-90),[0 100]);
+            FAmap = FAmap.*double(mask_nii_f08(:,:,slice_array(iDx)));
+            FAmap([1:8 end-8:end],:) = [];
+            %imagesc(imrotate(FAmap,-90),[0 100]);
+            imagesc(FAmap.',[0 100]);
             %TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
             %TT.FontSize = 16;
             axis image; axis off;colormap(ax2, 'hot');
-            text(2,4,sprintf('Slice %d FA',result_to_plot_array(iDx)),'Color','w','FontSize',16);
+            text(2,4,sprintf('Slice %d',result_to_plot_array(iDx)),'Color','w','FontSize',16);
             nudge(ax2,[0 0.04 0 0]);
+            if iDx ==1
+                ylabel('Achieved','FontSize',16,'FontWeight','bold');ax2.YLabel.Visible = 'on';
+            end
             if iDx == 5
                 CLB2 = colorbar('FontSize',16,'Ticks',[0,50,100],...
                     'TickLabels',{'0°','50°','100°'});
+                set(get(CLB2,'Title'),'String','FA')
                 nudge(CLB2,[0.06 -0.049 0.012 0.1]);
             end
             ax3 = subplot(3,5,iDx+10);
             target = squeeze(maskedMaps.mask_one_slice(:,:,result_to_plot_array(iDx))) - circle;
             diff = abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-90*target;
+            diff = diff.*double(mask_nii_f08(:,:,slice_array(iDx)));
             diff(diff == 0) = -inf;
-            diff([1:11 end-5:end],:) = [];
-            imagesc(imrotate(diff,-90),[-10 10]);
+            diff([1:8 end-8:end],:) = [];
+            %imagesc(imrotate(diff,-90),[-10 10]);
+            imagesc(diff.',[-10 10]);
             %TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
             %TT.FontSize = 16;
             axis image; axis off; 
             nudge(ax3,[0 0.08 0 0]);
-            text(2,4,sprintf('Slice %d Diff',result_to_plot_array(iDx)),'Color','w','FontSize',16);
+            text(2,4,sprintf('Slice %d',result_to_plot_array(iDx)),'Color','w','FontSize',16);
             colormap(ax3, 'hot');
+            if iDx ==1
+                ylabel('Difference','FontSize',16,'FontWeight','bold');ax3.YLabel.Visible = 'on';
+            end
             if iDx == 5
                 CLB3 = colorbar('FontSize',16,'Ticks',[-10,0,10],...
                     'TickLabels',{'-10°','0°','10°'});
                 nudge(CLB3,[0.06 -0.049 0.012 0.1]);
-                %set(get(CLB3,'Title'),'String','deg')
+                set(get(CLB3,'Title'),'String','FA')
             end
 
         end
