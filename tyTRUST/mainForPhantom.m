@@ -98,27 +98,9 @@
         temp3 = temp2(:,:,:,iDx);
         MLEVRoi.b1(:,iDx) = temp3(maskedMaps.ROImask);
     end
-   %%
 
-   options.Gmax         = 22.0;     % [mT/m]
-   options.Smax         = 200.0;   	% YT[T/m/s]
-   options.Vmax         = 150.0;    % [V]
-   options.phi_bounds   = [   10.0000   10.0000   10.0000    2.0000    1.0000   -8.0000    0.5000 ; ...
-                                     100.0000  100.0000  100.0000    7.5000   10.0000   +8.0000    2.0000 ].';
-   options.GBF          =       struct(  'OnlyContinuousRanges',0,...
-                                                        'GradSmooth_On',1,...
-                                                        'GradSmooth_Lambda',1e-3,...
-                                                        'GradSmooth_MaxDistFac',2,...
-                                                        'verbosity',0,...
-                                                        'UseMex',0,...
-                                                        'SolverID','MinConF_SPG' );
    %%
-   options.phi_init = [40  40  20   7    6    1    1 ].';
-   [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
-   NV = sum( R_mat(:,end) );
-   G0 = zeros( NV,1 );
-   T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
-   %%
+   T_init = makeTraj();
    tyPlotTrajectory( T_init ); set(gcf,'name','Initial k-space Trajectory')
    fprintf('Pulse duration = %.2f ms\n', T_init.t(end));
    %plot3(kx_vec,ky_vec,kz_vec);
@@ -130,6 +112,7 @@
    AFullMag = genAMatFull(1E-5*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
             maskedMaps.b0MapMasked,maskedMaps.posVox);
    AFull = asin(AFullMag);
+   clear AFullMag
    %% Extending the RF pulse while keeping the number of points the same.
    Time_Vec_extended = Time_Vec*2;
    AFull_Extended = genAMatFull(1E-5*ones(numel(Time_Vec_extended),1),ones(numel(Time_Vec_extended),1),Gradient,maskedMaps.b1SensMaskedHz,...
@@ -140,7 +123,7 @@
     param.tol = 1e-5;
     %param.CGtikhonov = 1e-6;
     %tikhonovArray = power(10,-6:1:-4);
-    tikhonovArray = power(10,-6);
+    tikhonovArray = power(10,-6);       % -6 for 0707
     ALambda_cell = cell(size(tikhonovArray));
     %% 
     % run time: "\" < lsqminnorm < pinv
@@ -156,21 +139,31 @@
         OutCell{iDx} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{iDx});
         %OutCell{3} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{3});
     end
-    %% Plotting the target and final mag
-    close all
-    PlotSingleSlice(TargetTemp(:,:,Slice_Array),xz_res,xz_res,90,true);
-    PlotSingleSlice(abs(OutCell{1}.finalMag),xz_res,xz_res,90,true);
-    PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
-    %%
-    [U1,S1,V1] = svd(AFull);
-    %%
-    SysMat_SVD.U = U1(:,1:600); SysMat_SVD.S = sparse(S1(1:600,1:600)); SysMat_SVD.V = V1(:,1:600);
-    %%
-    out = run_active_set(OutCell{2}.bOut,maskedMaps,param,AFull);
-    
-    %%  
-    out_singval = run_SingVal(OutCell{2}.bOut,maskedMaps,param,AFull);
-    
+%     %% Plotting the target and final mag
+%     close all
+%     PlotSingleSlice(TargetTemp(:,:,Slice_Array),xz_res,xz_res,90,true);
+%     PlotSingleSlice(abs(OutCell{1}.finalMag),xz_res,xz_res,90,true);
+%     PlotSingleSlice(TargetTemp(:,:,Slice_Array)-1-abs(finalMag),xz_res,xz_res,90,true);
+%     %%
+%     [U1,S1,V1] = svd(AFull);
+%     %%
+%     SysMat_SVD.U = U1(:,1:600); SysMat_SVD.S = sparse(S1(1:600,1:600)); SysMat_SVD.V = V1(:,1:600);
+%     %%
+%     out = run_active_set(OutCell{2}.bOut,maskedMaps,param,AFull);
+%     
+%     %%  
+%     out_singval = run_SingVal(OutCell{2}.bOut,maskedMaps,param,AFull);
+%     
+%% Trying to smooth the RF pulse
+[bSmooth,bSmooth_by_chan] = fileter_RF(OutCell{1}.bOut);
+Smooth_finalmag = MakeFullImg(maskedMaps.mask_one_slice,AFull*bSmooth);
+%%
+run_comparison_plot(CircleMaskFiltered,Smooth_finalmag,maskedMaps);
+
+%%
+plotRF(bSmooth)
+%%
+writeIniFile_ty(bSmooth_by_chan,gradIn);
     %%
     run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps);
     %%
@@ -181,6 +174,27 @@
     
     %%
     writeIniFile_ty(rfIn,gradIn)
+    
+    %% Writiing zeros in RF and Gradient arrays to verify the performance of spoiler
+    writeIniFile_ty(rfIn,0*gradIn)
+    %% Writing a gaussian pulse to verify the performance of spoiler
+    Gaussian_struct = tyMakeGaussian(600,5);
+    rfIn_Gaussian = zeros(size(Gaussian_struct.RFOn));
+    rfIn_Gaussian(Gaussian_struct.RFOn) = 120*[0 Gaussian_struct.RF_pulse 0]';
+    rfIn_Gaussian = repmat(rfIn_Gaussian,[1 8]);
+    gradIn_Gaussian = zeros(numel(Gaussian_struct.RFOn),3);
+    gradIn_Gaussian(:,3) = 42.57E6*1e-5*Gaussian_struct.GradShape;  %mT/m to Gauss/cm
+    writeIniFile_ty(rfIn_Gaussian,gradIn_Gaussian);
+    
+    %%
+        %% Writing a sinc pulse to verify the performance of spoiler
+    sinc_struct = tyMakeSinc(600,4,5);
+    rfIn_sinc = zeros(size(sinc_struct.RFOn));
+    rfIn_sinc(sinc_struct.RFOn) = 120*[0; sinc_struct.rfNormalized; 0];
+    rfIn_sinc = repmat(rfIn_sinc,[1 8]);
+    gradIn_sinc = zeros(numel(sinc_struct.RFOn),3);
+    gradIn_sinc(:,3) = 42.57E6*1e-5*sinc_struct.GradShape;  %mT/m to Gauss/cm
+    writeIniFile_ty(rfIn_sinc,gradIn_sinc);
     
     %%
     rfIn_2us=zeros(size(rfIn,1)*2,size(rfIn,2));
@@ -202,19 +216,7 @@
     %% Change grad rf offset
     [RFTest,GradTest] = AdjustDelay(rfIn, gradIn, 10);
     writeIniFile_ty(RFTest,GradTest)
-    %%
-    RF_pulse = reshape(OutCell{1}.bOut,[numel(OutCell{1}.bOut)/8 8]);
-    figure(223)
-    for iDx = 1:8
-        set(gcf,'color','w','InvertHardcopy','off')
-        set(gcf,'units','centimeters','position',[4 4 60 30],'paperunits','centimeters','paperposition',[4 4 60 30])
-        subplot(2,4,iDx)
-        plot((1:numel(OutCell{1}.bOut)/8)/100,abs(RF_pulse(:,iDx)),'LineWidth',1.2);ylim([0 280])
-        title(sprintf('Channel %d',iDx))
-        xlabel('Time (ms)')
-        ylabel('Voltage (V)')
-        set(gca,'FontSize',16)
-    end
+
     
     %%
     figure(224)
@@ -226,6 +228,59 @@
     set(gcf,'color','w','InvertHardcopy','off')
     
     axis off
+    %%
+    
+    %% plot the RF
+    function plotRF(bOut)
+    RF_pulse = reshape(bOut,[numel(bOut)/8 8]);
+    figure(223)
+    for iDx = 1:8
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 60 30],'paperunits','centimeters','paperposition',[4 4 60 30])
+        subplot(2,4,iDx)
+        plot((1:numel(bOut)/8)/100,abs(RF_pulse(:,iDx)),'LineWidth',1.2);ylim([0 280])
+        title(sprintf('Channel %d',iDx))
+        xlabel('Time (ms)')
+        ylabel('Voltage (V)')
+        set(gca,'FontSize',16)
+    end
+    end
+    %%
+    function [bSmooth,bSmooth_by_chan] = fileter_RF(bOut)
+        b_by_chan = reshape(bOut,[numel(bOut)/8,8]);
+        bSmooth_by_chan = zeros(size(b_by_chan));
+        for iDx = 1:size(b_by_chan,2)
+            bSmooth_by_chan(:,iDx) = smooth(b_by_chan(:,iDx));
+        end
+        bSmooth = reshape(bSmooth_by_chan,size(bOut));
+    end
+    %%
+    function finalMag=MakeFullImg(mask_1_slice,ImgVec)
+        finalMag = zeros(numel(mask_1_slice),1);
+        finalMag(logical(mask_1_slice(:))) = ImgVec;
+        finalMag = reshape(finalMag,size(mask_1_slice));
+    end
+       %%
+       function T_init = makeTraj()
+   options.Gmax         = 22.0;     % [mT/m]
+   options.Smax         = 200.0;   	% YT[T/m/s]
+   options.Vmax         = 150.0;    % [V]
+   options.phi_bounds   = [   10.0000   10.0000   10.0000    2.0000    1.0000   -8.0000    0.5000 ; ...
+                                     100.0000  100.0000  100.0000    7.5000   10.0000   +8.0000    2.0000 ].';
+   options.GBF          =       struct(  'OnlyContinuousRanges',0,...
+                                                        'GradSmooth_On',1,...
+                                                        'GradSmooth_Lambda',1e-3,...
+                                                        'GradSmooth_MaxDistFac',2,...
+                                                        'verbosity',0,...
+                                                        'UseMex',0,...
+                                                        'SolverID','MinConF_SPG' );
+   
+   options.phi_init = [40  40  20   7    6    1    1 ].';
+   [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
+   NV = sum( R_mat(:,end) );
+   G0 = zeros( NV,1 );
+   T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
+       end
     %%
     function run_comparison_plot(circle,result,maskedMaps)
         figure(222)
@@ -618,6 +673,7 @@ writeRfAmp = abs(rfIn)/peakV; %Scale the amplitude from 0 to 1;
 writeRfPhase = angle(rfIn)+pi; % Scale phase from 0 to 2pi
 
 numsamples = size(gmag_mTm,1);  %YT change
+GradDelay = 0;                  %YT change
 %% Write the file
 
 fID = fopen('/Users/ytong/Documents/XP/pTxPulses/pTXArbitrary.ini','w');
@@ -631,8 +687,8 @@ fprintf(fID,'PulseName            = pTxArbitrary\n');
 fprintf(fID,'Comment              = pTx pulse\n');
 fprintf(fID,'Oversampling         = %i		# no oversampling\n',oversampling);
 fprintf(fID,'NominalFlipAngle     = %i		# flip-angle of this pulse if played out with 502.385V peak voltage\n',10);
-fprintf(fID,'SampleTime			 = 10\n');
-
+fprintf(fID,'SampleTime			  = 10\n');
+fprintf(fID,'GradDelay			  = %i\n',GradDelay);
 % Gradient
 fprintf(fID,'\n');
 fprintf(fID,'[Gradient]\n');
