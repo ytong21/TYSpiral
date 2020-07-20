@@ -39,7 +39,12 @@ k(:,2) = linspace(0,GyroRatio*G_amp*(Duration*(1e-6)),NumPoints); %1/m
 k = k/100; %1/cm. For simulation use. 
 %Grissom seems to prefer g/cm and cm.
 % Building the gradient shape, ramp up and ramp down of 1000us included 
-G_shape = [linspace(0,1,25),ones(1,NumPoints),linspace(1,0,25)]';
+
+% YT change 20/07/2020
+% add rephase gradient
+%G_shape = [linspace(0,1,25),ones(1,NumPoints),linspace(1,0,25)]';
+G_shape = [linspace(0,1,24),ones(1,NumPoints),linspace(1,0,24),...
+    linspace(0,-1,12),-1*ones(1,NumPoints/2),linspace(-1,0,12)]';
 RFOn = false(size(G_shape));
 RFOn(G_shape == 1) = true;
 
