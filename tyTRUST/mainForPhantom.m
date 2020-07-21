@@ -176,6 +176,11 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     %%
     writeIniFile_ty(rfIn,gradIn)
     
+    %% Bloch sim
+    mag = BlochSimArb(rfIn,gradIn,maskedMaps);
+    bloch_img=MakeFullImg(maskedMaps.mask_one_slice,mag.mz);
+    %%
+    imagesc(abs(bloch_img(:,:,5)))
     %% Writiing zeros in RF and Gradient arrays to verify the performance of spoiler
     writeIniFile_ty(rfIn,0*gradIn)
     %% Writing a gaussian pulse to verify the performance of spoiler
@@ -231,7 +236,21 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     
     axis off
     %%
-    
+ function OutStruct = BlochSimArb(RF,Gradient,maskedMaps)
+    %		mode= Bitmask mode:
+    %		Bit 0:  0-Simulate from start or M0, 1-Steady State
+    %		Bit 1:  1-Record m at time points.  0-just end time.
+    mode = 0;   
+    dt = 10e-6;                 %10us
+    g = Gradient;
+    sens = maskedMaps.b1SensMaskedHz;
+    df = maskedMaps.b0MapMasked;       
+    dp = maskedMaps.posVox;         % Assume isocentre
+    t1 = inf;
+    t2 = 150e-3;
+    [mx,my,mz] =  blochSim_mex_relax_multithread(RF,sens,g,dt,t1,t2,df,dp,mode);
+    OutStruct = struct('mx',mx,'my',my,'mz',mz);
+end
     %% plot the RF
     function plotRF(bOut)
     RF_pulse = reshape(bOut,[numel(bOut)/8 8]);
