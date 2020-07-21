@@ -79,10 +79,11 @@
     end
     %%
     %PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
-    maskedMaps.target_masked = TargetTemp(maskedMaps.mask);
+    %maskedMaps.target_masked = TargetTemp(maskedMaps.mask);
     % maskedMaps.target_masked is the target mag in the slices in interest
     % most of them will be 1, few voxes will be close to 0;
-    
+    % YT change 21/07/2020. Select only a circle for debugging.
+    maskedMaps.target_masked = 1-TargetTemp(maskedMaps.mask);
     %% creating a mask for the ROI whose blood T2 we are interested in
     
     maskedMaps.ROImask = zeros(size(maskedMaps.b0));
@@ -188,12 +189,13 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     
     %%
         %% Writing a sinc pulse to verify the performance of spoiler
-    sinc_struct = tyMakeSinc(600,4,5);
+    sinc_struct = tyMakeSinc(600,4,30);
     rfIn_sinc = zeros(size(sinc_struct.RFOn));
     rfIn_sinc(sinc_struct.RFOn) = 120*[0; sinc_struct.rfNormalized; 0];
     rfIn_sinc = repmat(rfIn_sinc,[1 8]);
     gradIn_sinc = zeros(numel(sinc_struct.RFOn),3);
-    gradIn_sinc(:,3) = 42.57E6*1e-5*sinc_struct.GradShape;  %mT/m to Gauss/cm
+    gradIn_sinc(:,1) = 42.57E6*1e-5*sinc_struct.GradShape;  %mT/m to Gauss/cm
+    plot(10*(1:size(gradIn_sinc,1)),rfIn_sinc,10*(1:size(gradIn_sinc,1)),gradIn_sinc(:,1));
     writeIniFile_ty(rfIn_sinc,gradIn_sinc);
     
     %%
