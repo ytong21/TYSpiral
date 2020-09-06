@@ -23,10 +23,8 @@ plot_mosaic(AllSlices223V_mosaic,[35 20],PlotRange)
 [~,Low_DiffV] = load_dcm(PathName,72:87);
 [~,Mid_Delay_223] = load_dcm(PathName,[89:98 100]);
 [~,Mid_Delay_180] = load_dcm(PathName,101:111);
-%%
 [~,Spoils_180] = load_dcm(PathName,113:121);
 [~,Spoils_223] = load_dcm(PathName,122:130);
-%%
 [~,FullSlab223V] = load_dcm(PathName,29:38);
 [~,FullSlab180V] = load_dcm(PathName,15:24);
 %%
@@ -41,6 +39,8 @@ plot_full_slab(FullSlab180V,PlotRange)
 fraction = find_fraction(AA, seg_new);
 %%
 chart_spoil(Spoils_180, Spoils_223,seg_new)
+%%
+chart_diffV({Low_DiffV,Mid_DiffV,Top_DiffV},seg)
 %%
 BB = seg;
 BB(DD>0)=0;
@@ -59,11 +59,206 @@ seg_new = seg;
 seg_new(DD>0)=3;
 imagesc(seg_new)
 %%
+out = find_mean_back(FullSlab180V,FullSlab223V,seg_new);
+%%
 fraction = zeros(1,size(Mid_DiffV,3));
 for iDx = 1:size(Mid_DiffV,3)
     fraction(iDx) = find_fraction(Mid_DiffV(:,:,iDx), seg_new);
 end
-%% 
+%%
+Yv_sim
+%%
+%%
+function Yv_sim
+%Y= 40%, 65%
+% See Lu et al. 2008 MRM equations 4&5.
+T1b = 2100; %ms
+T2b = [calc_T2_fromY(0.4,2),calc_T2_fromY(0.65,2)];  %ms
+C = 1/(T1b*1e-3)-1./(T2b*1e-3);
+eTE = 0:160;    decay_curve = zeros(2,numel(eTE));
+
+for iDx = 1:numel(C)
+    decay_curve(iDx,:) = exp(eTE/C(iDx));
+end
+bool_plot = [false,false,true];
+if bool_plot(1) == true
+        figure(121)
+        plot(eTE,decay_curve','LineWidth',5);
+        xlabel('eTE (ms)');ylabel('S_0 (a.u.)')
+            set(gcf,'color','w','InvertHardcopy','off')
+            set(gcf,'units','centimeters','position',[4 4 35 25],...
+                'paperunits','centimeters','paperposition',[4 4 35 25])
+            set(gca,'FontSize',24)
+        legend('Y = 40%','Y = 65%')    
+end
+        c_contami = 0:0.05:0.4;
+        decay_bi_exp = zeros(numel(c_contami),numel(eTE));
+        for iDx = 1:numel(c_contami)
+            decay_bi_exp(iDx,:) = c_contami(iDx)*decay_curve(2,:)+(1-c_contami(iDx))*decay_curve(1,:);
+            legend_cell{iDx} = strcat('Contamination=',num2str(c_contami(iDx)*100),'%');
+        end
+        
+if bool_plot(2) == true
+        figure(122)
+        plot(eTE,decay_bi_exp','LineWidth',3);
+        xlabel('eTE (ms)');ylabel('S_0 (a.u.)')
+            set(gcf,'color','w','InvertHardcopy','off')
+            set(gcf,'units','centimeters','position',[4 4 35 25],...
+                'paperunits','centimeters','paperposition',[4 4 35 25])
+            set(gca,'FontSize',24)
+            legend(legend_cell)
+end
+% Expotential fit, perfect
+fitted = cell(size(decay_bi_exp,1),1);
+T2_fitted = zeros(size(decay_bi_exp,1),1);
+Y_fitted = zeros(size(decay_bi_exp,1),1);
+% Fit with 0, 20, 40 ms for eTE with no noise
+eTE_new = eTE(1:20:41); decay_bi_exp_new = decay_bi_exp(:,1:20:41);
+fitted_wo_noise = cell(size(decay_bi_exp,1),1);
+T2_fitted_wo_noise = zeros(size(decay_bi_exp,1),1);
+% Fit with 0, 20, 40 ms for eTE with noise
+fitted_w_noise = cell(size(decay_bi_exp,1),1);
+T2_fitted_w_noise = zeros(size(decay_bi_exp,1),1);
+syms x
+for iDx = 1:size(decay_bi_exp,1)
+    fitted{iDx} = fit(eTE',decay_bi_exp(iDx,:)','exp1');
+    T2_fitted(iDx) = 1000*1/(1/(T1b*1e-3)-1/fitted{iDx}.b);
+    % Find corresponding Y
+%     eqn = 264*x^2 - 17.6*x + 14.6 - 1/(1e-3*T2_fitted(iDx)) == 0;
+%     solx = solve(eqn, x);
+    Y_fitted(iDx) = calc_Y_fromT2(T2_fitted(iDx),2);
+    % Fit with 0, 20, 40 ms for eTE with noise
+    fitted_wo_noise{iDx} = fit(eTE_new',decay_bi_exp_new(iDx,:)','exp1');
+    T2_fitted_wo_noise(iDx) = 1000*1/(1/(T1b*1e-3)-1/fitted_wo_noise{iDx}.b);
+    % add some noise
+    exp_noise = decay_bi_exp_new(iDx,:)'+0.02*randn(size(decay_bi_exp_new(iDx,:)'));
+    fitted_w_noise{iDx} = fit(eTE_new',exp_noise,'exp1');
+    T2_fitted_w_noise(iDx) = 1000*1/(1/(T1b*1e-3)-1/fitted_w_noise{iDx}.b);
+end
+
+if bool_plot(3) == true
+        figure(123)
+        specification = {'-','--','-.';'-o','--d','-.^'};
+        fit_2_plot = [T2_fitted,T2_fitted_wo_noise,T2_fitted_w_noise];
+        hold on
+        for iDx = 1:size(fit_2_plot,2)
+            plot(c_contami*100,fit_2_plot(:,iDx)',specification{2,iDx},...
+                'LineWidth',5,'MarkerSize',20);
+        end
+        xlabel('Contamination (%)');ylabel('T_2 (ms)')
+            set(gcf,'color','w','InvertHardcopy','off')
+            set(gcf,'units','centimeters','position',[4 4 35 25],...
+                'paperunits','centimeters','paperposition',[4 4 35 25])
+            set(gca,'FontSize',24)
+            legend('Perfect fit','3 eTEs wo/ noise','3 eTEs w/ noise',...
+                'Location','NorthWest')
+end
+end
+function Y = calc_Y_fromT2(T2,HctMode)
+if sum(HctMode==[1,2,3])==0
+    error('HctMode must be 1, 2, or 3.')
+end
+% 1 2 3 corresponds to 34%, 42%, 54%
+Hct_ABC = [14.6,    -31.2,  223.5;
+           14.9,    -17.6,  264.0;
+           16.7,     3.7,   240.9];
+syms x
+eqn = Hct_ABC(HctMode,3)*x^2 + Hct_ABC(HctMode,2)*x + Hct_ABC(HctMode,1)...
+        - 1/(1e-3*T2) == 0;
+    solx = solve(eqn, x);
+    Y = 1-double(solx(2));
+end
+function T2 = calc_T2_fromY(Y,HctMode)
+if sum(HctMode==[1,2,3])==0
+    error('HctMode must be 1, 2, or 3.')
+end
+% 1 2 3 corresponds to 34%, 42%, 54%
+Hct_ABC = [14.6,    -31.2,  223.5;
+           14.9,    -17.6,  264.0;
+           16.7,     3.7,   240.9];
+T2 =  1000/(Hct_ABC(HctMode,:)*[1; 1-Y; (1-Y)^2]);
+end
+function sim_T2_Y
+%Refer to Krishnamurthy et al. MRM 2014
+%10.1002/mrm.24868 table 1
+Hct_ABC = [14.6,    -31.2,  223.5;
+           14.9,    -17.6,  264.0;
+           16.7,     3.7,   240.9];
+c1 = 0:0.05:0.4;
+c2 = 1-c1;
+T2_concentration = zeros(3,numel(c1));
+Y1 = 0.65;   Y2 = 0.4;  Y = 0.3:0.01:1;
+T2_Y = zeros(3,numel(Y));
+specification = {'-','--','-.';'-o','--d','-.x'};
+lgd = {'Hct=34%','Hct=42%','Hct=54%'};
+for jDx = 1:3
+    for iDx = 1:numel(c1)
+        Y_temp = c1(iDx)*Y1+c2(iDx)*Y2;
+        T2_concentration(jDx,iDx) = 1000/(Hct_ABC(jDx,:)*[1; 1-Y_temp; (1-Y_temp)^2]);
+        % convert to ms.
+    end
+    for iDx = 1:numel(Y)
+        T2_Y(jDx,iDx) = 1000/(Hct_ABC(jDx,:)*[1; 1-Y(iDx); (1-Y(iDx))^2]);
+        % convert to ms.
+    end
+end
+figure(111)
+hold on
+for jDx = 1:3
+    plot(100*Y,T2_Y(jDx,:),specification{1,jDx},'LineWidth',5);
+end
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 35 25],...
+        'paperunits','centimeters','paperposition',[4 4 35 25])
+    set(gca,'FontSize',24)
+    xlabel('Oxygenation Y(%)');ylabel('T_2 (ms)');
+    legend(lgd,'Location','NorthWest');
+figure(112)
+hold on
+for jDx = 1:3
+    plot(100*c1,T2_concentration(jDx,:),specification{2,jDx},...
+        'LineWidth',5,'MarkerSize',15);
+end
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 35 25],...
+        'paperunits','centimeters','paperposition',[4 4 35 25])
+    set(gca,'FontSize',24)
+    xlabel('Singal contamination (%)');ylabel('T_2 (ms)');
+    legend(lgd,'Location','NorthWest');
+end
+function out = find_mean_back(FullSlab180V,FullSlab223V,seg_new)
+%     voxels_180 = [];
+%     voxels_223 = [];
+    mask = repmat(seg_new,[1,1,10]);
+    voxels_180 = FullSlab180V(mask==2);
+    voxels_223 = FullSlab223V(mask==2);
+    out = [voxels_180,voxels_223];
+end
+function chart_diffV(Img_Cell,seg)
+    diffV_metric = zeros(numel(Img_Cell),size(Img_Cell{1},3));
+    % dim1: (low, mid, high) dim2: voltage dim3: mean/std
+    for iDx = 1:numel(Img_Cell)
+        for jDx = 1:size(Img_Cell{1},3)
+            [~,mean_std_temp,~]=find_fraction(Img_Cell{iDx}(:,:,jDx),seg);
+            diffV_metric(iDx,jDx,1) = mean_std_temp(1);
+            diffV_metric(iDx,jDx,2) = mean_std_temp(2);
+        end
+    end
+    voltage = 100:10:250;
+    color_cell = {[0.8500 0.3250 0.0980],[0.9290 0.6940 0.1250],[0.4660 0.6740 0.1880]};
+    marker_cell = {'-o','-x','-s'};
+    hold on
+    for iDx = 1:numel(Img_Cell)
+        errorbar(voltage,diffV_metric(iDx,:,1),diffV_metric(iDx,:,2),...
+            marker_cell{iDx},'LineWidth',3,'MarkerSize',17,'Color',color_cell{iDx},'CapSize',15)
+    end
+    legend('Low','Mid','High')
+    xlabel('Pulse voltage');ylabel('Backgroud pixel intensity (a.u.)')
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 35 25],...
+        'paperunits','centimeters','paperposition',[4 4 35 25])
+    set(gca,'FontSize',22)
+end
 function chart_spoil(Spoils_180, Spoils_223,seg)
     mean_back_180 = zeros(1,size(Spoils_180,3));
     mean_back_223 = zeros(1,size(Spoils_223,3));
@@ -82,7 +277,7 @@ function chart_spoil(Spoils_180, Spoils_223,seg)
         plot(x_data,m_180(:,iDx),'-o','LineWidth',3,'MarkerSize',17,'Color',color_cell{iDx})
     end
     for iDx = 1:3
-            plot(x_data,m_223(:,iDx),'--d','LineWidth',3,'MarkerSize',17,'Color',color_cell{iDx})
+        plot(x_data,m_223(:,iDx),'--d','LineWidth',3,'MarkerSize',17,'Color',color_cell{iDx})
     end
     xlim([0.8 3.2]);xticks(1:3);yticks(100:100:500)
     xlabel('No. of sat pulses');ylabel('Mean backgroud pixel intensity (a.u.)')
