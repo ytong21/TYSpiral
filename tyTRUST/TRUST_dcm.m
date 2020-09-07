@@ -66,9 +66,26 @@ for iDx = 1:size(Mid_DiffV,3)
     fraction(iDx) = find_fraction(Mid_DiffV(:,:,iDx), seg_new);
 end
 %%
-Yv_sim
+sim_conta_volume(FullSlab180V,seg_new,69.7)
 %%
 %%
+function sim_conta_volume(Img,Seg,S_exp)
+seg_3D = repmat(Seg,[1 1 size(Img,3)]);
+ROI = Img(seg_3D==3);
+Back = Img(seg_3D==2);
+mean_back = mean(Back-S_exp);
+mean_ROI = mean(ROI);
+ratio_array = 0:40;
+contamination = (mean_back*(1-ratio_array/100))./...
+    (mean_back*(1-ratio_array/100)+mean_ROI*(ratio_array/100));
+figure(131)
+plot(ratio_array,contamination*100,'LineWidth',5)
+xlabel('ROI volume (%)');ylabel('Contamination (%)')
+            set(gcf,'color','w','InvertHardcopy','off')
+            set(gcf,'units','centimeters','position',[4 4 30 20],...
+                'paperunits','centimeters','paperposition',[4 4 30 20])
+            set(gca,'FontSize',24)
+end
 function Yv_sim
 %Y= 40%, 65%
 % See Lu et al. 2008 MRM equations 4&5.
@@ -80,11 +97,11 @@ eTE = 0:160;    decay_curve = zeros(2,numel(eTE));
 for iDx = 1:numel(C)
     decay_curve(iDx,:) = exp(eTE/C(iDx));
 end
-bool_plot = [false,false,true];
+bool_plot = [true,true,false, false];
 if bool_plot(1) == true
         figure(121)
         plot(eTE,decay_curve','LineWidth',5);
-        xlabel('eTE (ms)');ylabel('S_0 (a.u.)')
+        xlabel('eTE (ms)');ylabel('MR signal (a.u.)')
             set(gcf,'color','w','InvertHardcopy','off')
             set(gcf,'units','centimeters','position',[4 4 35 25],...
                 'paperunits','centimeters','paperposition',[4 4 35 25])
@@ -101,7 +118,7 @@ end
 if bool_plot(2) == true
         figure(122)
         plot(eTE,decay_bi_exp','LineWidth',3);
-        xlabel('eTE (ms)');ylabel('S_0 (a.u.)')
+        xlabel('eTE (ms)');ylabel('MR signal (a.u.)')
             set(gcf,'color','w','InvertHardcopy','off')
             set(gcf,'units','centimeters','position',[4 4 35 25],...
                 'paperunits','centimeters','paperposition',[4 4 35 25])
@@ -135,7 +152,6 @@ for iDx = 1:size(decay_bi_exp,1)
     fitted_w_noise{iDx} = fit(eTE_new',exp_noise,'exp1');
     T2_fitted_w_noise(iDx) = 1000*1/(1/(T1b*1e-3)-1/fitted_w_noise{iDx}.b);
 end
-
 if bool_plot(3) == true
         figure(123)
         specification = {'-','--','-.';'-o','--d','-.^'};
@@ -152,6 +168,25 @@ if bool_plot(3) == true
             set(gca,'FontSize',24)
             legend('Perfect fit','3 eTEs wo/ noise','3 eTEs w/ noise',...
                 'Location','NorthWest')
+end
+if bool_plot(4) == true
+        figure(124)
+        hold on
+        yyaxis left
+        plot(c_contami*100,T2_fitted','-o',...
+                'LineWidth',5,'MarkerSize',20);
+        xlabel('Contamination (%)');ylabel('T_2 (ms)')
+        
+        yyaxis right
+        plot(c_contami*100,100*Y_fitted','--d',...
+                'LineWidth',5,'MarkerSize',20);
+        xlabel('Contamination (%)');ylabel('Y (%)')        
+            set(gcf,'color','w','InvertHardcopy','off')
+            set(gcf,'units','centimeters','position',[4 4 35 20],...
+                'paperunits','centimeters','paperposition',[4 4 35 20])
+            set(gca,'FontSize',24)
+             legend('T_2 vs. contamination','Y vs. contamination',...
+                 'Location','NorthWest')
 end
 end
 function Y = calc_Y_fromT2(T2,HctMode)
