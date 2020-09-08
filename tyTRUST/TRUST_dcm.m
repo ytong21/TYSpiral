@@ -68,7 +68,51 @@ end
 %%
 sim_conta_volume(FullSlab180V,seg_new,69.7)
 %%
+    run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps);
+
 %%
+    function run_comparison_plot(circle,result,maskedMaps)
+    % taken from main for phantom
+        %figure(222)
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 35 20],'paperunits','centimeters','paperposition',[4 4 35 20])
+        %slice_array = 35:2:44;        
+        result_to_plot_array = 1:2:10;  toChop = 6;
+        FAmap = rad2deg(abs(result(:,:,result_to_plot_array)));
+        FAmap = trim3D_vert(FAmap,toChop);
+        FA_mosaic = make_mosaic(FAmap,[1 5]);
+        % calc difference
+        target = squeeze(maskedMaps.mask_one_slice(:,:,result_to_plot_array)) - circle;
+        diff = abs(rad2deg(result(:,:,result_to_plot_array)))-90*target;
+        diff(diff == 0) = -inf;
+        diff = trim3D_vert(diff,toChop);
+        diff_mosaic = make_mosaic(diff,[1 5]);
+        figure
+        FigDim = [42 18];
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 FigDim(1) FigDim(2)],...
+            'paperunits','centimeters','paperposition',[4 4 FigDim(1) FigDim(2)])
+        subplot(2,1,1)
+        plot_mosaic(FA_mosaic,[40 18],[0 100],false,true,'deg');
+        write_text(1:5,1:5,result_to_plot_array,FAmap);
+        title('Achieved FA','FontSize',20);
+        subplot(2,1,2)
+        plot_mosaic(diff_mosaic,[40 18],[-10 10],false,true,'deg')
+        write_text(1:5,1:5,result_to_plot_array,FAmap);
+        title('Difference','FontSize',20)
+        %set(gca,'FontSize',24)
+    end
+    function write_text(index_array,index_matrix,text_array,Img)
+    [d1,d2,~] = size(Img);
+        for iDx = 1:numel(index_array)
+            [row,col] = find(index_matrix == index_array(iDx));
+            location_row = (row-1)*d1+3;
+            location_col = (col-1)*d2+1;
+            string = sprintf('Slice %d',text_array(iDx));
+            text(location_col,location_row,string,'Color','w',...
+                'FontSize',18)
+        end
+    end
 function sim_conta_volume(Img,Seg,S_exp)
 seg_3D = repmat(Seg,[1 1 size(Img,3)]);
 ROI = Img(seg_3D==3);
@@ -509,19 +553,36 @@ OutputImg = zeros(dim1-voxel2chop*2,dim2,dim3);
 end
 %a function to make image collages
 function plot_mosaic(Img,FigDim,varargin)
-    figure()
+    %figure()
     if numel(varargin) == 0
         imagesc(Img)
     elseif numel(varargin) == 1
         PlotRange = varargin{1};
         imagesc(Img,PlotRange)
+    elseif numel(varargin) == 2
+        PlotRange = varargin{1};
+        imagesc(Img,PlotRange)
+        bool_newfig = varargin{2};
+    elseif numel(varargin) == 4
+        PlotRange = varargin{1};
+        imagesc(Img,PlotRange)
+        bool_newfig = varargin{2};
+        bool_colorbar = varargin{3};
+        str_colorbar = varargin{4};
     else
-        error('Only 2 or 3 inputs are allowed.');
+        error('Only 2, 3, 4 or 6 inputs are allowed.');
     end
-    set(gcf,'color','w','InvertHardcopy','off')
-    set(gcf,'units','centimeters','position',[4 4 FigDim(1) FigDim(2)],...
-        'paperunits','centimeters','paperposition',[4 4 FigDim(1) FigDim(2)])
+    if bool_newfig        
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',[4 4 FigDim(1) FigDim(2)],...
+            'paperunits','centimeters','paperposition',[4 4 FigDim(1) FigDim(2)])
+    end
     axis image        
     axis off
     colormap hot
+    if bool_colorbar
+        colorbar
+        CLB2 = colorbar('FontSize',20);%nudge(CLB2,[0.05 -0.048 0.01 0.095]);
+        set(get(CLB2,'Title'),'String',str_colorbar)
+    end
 end
