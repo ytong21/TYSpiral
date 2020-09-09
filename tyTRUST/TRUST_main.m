@@ -148,12 +148,10 @@
         nii_tmp = niftiread(FileName);
         TRUST_nii(:,:,iDxx) = imrotate(nii_tmp,90);
     end
-    %%
+    
     TRUST_img = [TRUST_nii(:,:,1),TRUST_nii(:,:,2),TRUST_nii(:,:,3);...
         TRUST_nii(:,:,4),TRUST_nii(:,:,5),zeros(64,64)];
-    %%
-    plot_b1_b0_scatter(maskedMaps);
-    %%
+    
     figure;set(gcf,'color','w','InvertHardcopy','off')
         set(gcf,'units','centimeters','position',[4 4 30 20],'paperunits','centimeters','paperposition',[4 4 30 20])
         imagesc(TRUST_img);axis image;colormap gray;axis off
@@ -163,6 +161,10 @@
     text(2+64*2,4,sprintf('Slice %d',5),'Color','w','FontSize',20);
     text(2,4+64,sprintf('Slice %d',7),'Color','w','FontSize',20);
     text(2+64,4+64,sprintf('Slice %d',9),'Color','w','FontSize',20);
+    %%
+    plot_b1_b0_scatter(maskedMaps);
+    %%
+
     %%
     RF_pulse = reshape(OutCell{2}.bOut,[numel(OutCell{2}.bOut)/8 8]);
     figure(223)
@@ -228,6 +230,36 @@
 %         nudge(LDG2,[0.08 0.013 0 0]);
 %%
 plot_b1_b0_hist(maskedMaps);
+
+%%
+plot_EPI_raw
+
+
+%%    
+function plot_EPI_raw
+    %TRUST_nii = zeros(54,64,5);
+    nii_slice_array = 32:2:40;
+    for iDxx = 1:5
+        FileName = strcat('/Users/ytong/Documents/Data/TRUST/2013_50_123_nii/',num2str(nii_slice_array(iDxx)),'_masked.nii.gz');
+        nii_tmp = niftiread(FileName);
+        nii_tmp = imrotate(nii_tmp,90);
+        nii_tmp(1:6,:) = [];
+        nii_tmp(end-7:end,:) = [];
+        nii_tmp(:,1:8) = [];
+        nii_tmp(:,end-7:end) = [];
+        TRUST_nii(:,:,iDxx) = nii_tmp;
+    end
+    figure;set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 30 20],'paperunits','centimeters','paperposition',[4 4 30 20])
+    TRUST_img = [[TRUST_nii(:,:,1),TRUST_nii(:,:,2)];[TRUST_nii(:,:,3),...
+        TRUST_nii(:,:,4)]];
+    imagesc(TRUST_img)
+    axis image;colormap hot;axis off
+    text(2,4,sprintf('Slice %d',1),'Color','w','FontSize',20);
+    text(2+48,4,sprintf('Slice %d',3),'Color','w','FontSize',20);
+    text(2,4+50,sprintf('Slice %d',5),'Color','w','FontSize',20);
+    text(2+48,4+50,sprintf('Slice %d',7),'Color','w','FontSize',20);
+end
 %%
 function plot_b1_b0_hist(maskedMaps)
 	b0 = maskedMaps.b0MapMasked;                %Hz

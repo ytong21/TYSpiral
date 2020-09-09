@@ -1,5 +1,5 @@
     %% Load in the data and interporlate to B0
-    pTxPath = '/Users/ytong/Documents/Data/TRUST/20200707/20200707_Phantom_0707';
+    pTxPath = '/Users/ytong/Documents/Data/TRUST/20200723/20200723_Phantom_23_07';
     dt = Spectro.dicomTree('dir',pTxPath,'recursive',false);
     ptxFMObj = DicomFM.WTCpTxFieldmaps(dt,'B1String','dt_dream_wIce_60deg_90VRef__B1',...
         'B0String','fieldmap_ptx7t_iso4mm_trans_RL','LocaliserString','localizer','InterpTarget',...
@@ -30,7 +30,7 @@
         'OilPhan0316'));
     
     %%
-    mask_nii = niftiread('/Users/ytong/Documents/Data/TRUST/20200707/0707_nii/0707_mask.nii.gz');
+    mask_nii = niftiread('/Users/ytong/Documents/Data/TRUST/20200723/0723_nii/oil_0723_mask.nii.gz');
     mask_nii = flip(mask_nii,2);
     
     %% Specify the slice number and make a mask
@@ -79,11 +79,11 @@
     end
     %%
     %PlotSingleSlice(squeeze(TargetTemp(:,:,Slice_Array)),xz_res,y_res,90,true);
-    %maskedMaps.target_masked = TargetTemp(maskedMaps.mask);
+    maskedMaps.target_masked = TargetTemp(maskedMaps.mask);
     % maskedMaps.target_masked is the target mag in the slices in interest
     % most of them will be 1, few voxes will be close to 0;
     % YT change 21/07/2020. Select only a circle for debugging.
-    maskedMaps.target_masked = 1-TargetTemp(maskedMaps.mask);
+    %maskedMaps.target_masked = 1-TargetTemp(maskedMaps.mask);
     %% creating a mask for the ROI whose blood T2 we are interested in
     
     maskedMaps.ROImask = zeros(size(maskedMaps.b0));
@@ -179,8 +179,21 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     %% Bloch sim
     mag = BlochSimArb(rfIn,gradIn,maskedMaps);
     bloch_img=MakeFullImg(maskedMaps.mask_one_slice,mag.mz);
-    %%
-    imagesc(abs(bloch_img(:,:,5)))
+
+    %% Bloch sim for diff voltages
+    Vol_Array = 100:10:250;
+    
+    for iDx=1:numel(Vol_Array)
+        rf_2_sim = Vol_Array(iDx)*rfIn/max(abs(rfIn(:)));
+        mag_temp = BlochSimArb(rf_2_sim,gradIn,maskedMaps);
+        img_temp=MakeFullImg(maskedMaps.mask_one_slice,mag_temp.mz);
+        sim_img(:,:,:,iDx) = img_temp;
+    end
+    
+    %% Bloch sim for diff time offset
+    Offset_array = -10:2:10;
+    % raster time =  10 us
+    
     %% Writiing zeros in RF and Gradient arrays to verify the performance of spoiler
     writeIniFile_ty(rfIn,0*gradIn)
     %% Writing a gaussian pulse to verify the performance of spoiler
@@ -236,12 +249,57 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     
     axis off
     %%
- function OutStruct = BlochSimArb(RF,Gradient,maskedMaps)
+    sim_DiffV = sim_diffV(rfIn,gradIn,maskedMaps);
+    %%
+    delay_img = sim_delay(rfIn,gradIn,maskedMaps);
+        %% Bloch sim for diff voltages
+  function  sim_img = sim_diffV(rfIn,gradIn,maskedMaps)
+    Vol_Array = 100:10:250;
+    
+    for iDx=1:numel(Vol_Array)
+        rf_2_sim = Vol_Array(iDx)*rfIn/max(abs(rfIn(:)));
+        mag_temp = BlochSimArb(rf_2_sim,gradIn,maskedMaps);
+        img_temp=MakeFullImg(maskedMaps.mask_one_slice,mag_temp.mz);
+        for jDx = 1:size(img_temp,3)
+            sim_img(:,:,jDx,iDx) = img_temp(:,:,jDx).';
+        end
+    end
+  end
+    function  sim_img = sim_delay(rfIn,gradIn,maskedMaps)
+    delay_array = -10:2:10;
+    raster = 2;
+    rf = interp1(0:size(rfIn,1),[zeros(1,size(rfIn,2)); rfIn],(1:5*size(rfIn,1))/5);
+    grad = interp1(0:size(gradIn,1),[zeros(1,size(gradIn,2)); gradIn],(1:5*size(gradIn,1))/5);
+    sample_2us = size(rf,1);
+    for iDx=1:numel(delay_array)
+        num_shift = delay_array(iDx)/raster;
+        rf_2_sim = complex(zeros(size(rf,1)+5,size(rf,2)));
+        grad_2_sim = zeros(size(grad,1)+5,size(grad,2));
+        if num_shift<=0
+            grad_2_sim(1:sample_2us,:) = grad;
+            rf_2_sim((abs(num_shift)+1):(abs(num_shift)+sample_2us),:) = rf;
+        else
+            rf_2_sim(1:sample_2us,:) = rf;
+            grad_2_sim((abs(num_shift)+1):(abs(num_shift)+sample_2us),:) = grad;
+        end
+        mag_temp = BlochSimArb(rf_2_sim,grad_2_sim,maskedMaps,raster);
+        img_temp=MakeFullImg(maskedMaps.mask_one_slice,mag_temp.mz);
+        for jDx = 1:size(img_temp,3)
+            sim_img(:,:,jDx,iDx) = img_temp(:,:,jDx).';
+        end
+    end
+  end
+ function OutStruct = BlochSimArb(RF,Gradient,maskedMaps,varargin)
     %		mode= Bitmask mode:
     %		Bit 0:  0-Simulate from start or M0, 1-Steady State
     %		Bit 1:  1-Record m at time points.  0-just end time.
+    if numel(varargin)==1
+        dt = varargin{1}*1e-6;                 %10us
+    else
+        dt = 10e-6;
+    end
     mode = 0;   
-    dt = 10e-6;                 %10us
+    %dt = 10e-6;                 %10us
     g = Gradient;
     sens = maskedMaps.b1SensMaskedHz;
     df = maskedMaps.b0MapMasked;       
@@ -314,7 +372,8 @@ end
         ax1 = subplot(2,5,iDx);
         FAmap = rad2deg(abs(result(:,:,result_to_plot_array(iDx))));
         %FAmap([1:11 end-5:end],:) = [];
-        imagesc(imrotate(FAmap,-90),[0 100]);
+        imagesc(imrotate(flip(FAmap),-90),[0 100]);
+        %imagesc(FAmap,[0 100]);
         %TT = title(sprintf('Slice %d',result_to_plot_array(iDx)));
         %TT.FontSize = 16;
         axis image; axis off;colormap(ax1, 'hot');
@@ -331,7 +390,8 @@ end
         diff = abs(rad2deg(result(:,:,result_to_plot_array(iDx))))-90*target;
         diff(diff == 0) = -inf;
         %diff([1:11 end-5:end],:) = [];
-        imagesc(imrotate(diff,-90),[-10 10]);
+        imagesc(imrotate(flip(diff),-90),[-10 10]);
+        %imagesc(diff,[-10 10]);
         %TT = title(sprintf('Slice %d diff',result_to_plot_array(iDx)));
         %TT.FontSize = 16;
         axis image; axis off; 
