@@ -70,7 +70,16 @@ sim_conta_volume(FullSlab180V,seg_new,69.7)
 %%
     run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps);
 
+    
+    %%
+    plot_diffV(abs(permute(squeeze(sim_DiffV(:,:,5,:)),[2 1 3])),[0 1])
+    
+    %%
+    plot_diffV(abs(sim_DiffV(:,:,5,:)),[0 1])
+    %%
+    plot_delay(abs(delay_img(:,:,5,:)),[0 1])
 %%
+
     function run_comparison_plot(circle,result,maskedMaps)
     % taken from main for phantom
         %figure(222)
@@ -80,12 +89,16 @@ sim_conta_volume(FullSlab180V,seg_new,69.7)
         result_to_plot_array = 1:2:10;  toChop = 6;
         FAmap = rad2deg(abs(result(:,:,result_to_plot_array)));
         FAmap = trim3D_vert(FAmap,toChop);
-        FA_mosaic = make_mosaic(FAmap,[1 5]);
         % calc difference
         target = squeeze(maskedMaps.mask_one_slice(:,:,result_to_plot_array)) - circle;
         diff = abs(rad2deg(result(:,:,result_to_plot_array)))-90*target;
         diff(diff == 0) = -inf;
         diff = trim3D_vert(diff,toChop);
+        for iDx = 1:size(FAmap,3)
+            FA_plot(:,:,iDx) = FAmap(:,:,iDx)';
+            diff_plot(:,:,iDx) = diff(:,:,iDx)';
+        end
+        FA_mosaic = make_mosaic(FAmap,[1 5]);
         diff_mosaic = make_mosaic(diff,[1 5]);
         figure
         FigDim = [42 18];
@@ -367,10 +380,15 @@ function chart_spoil(Spoils_180, Spoils_223,seg)
     set(gca,'FontSize',22)
 end
 function plot_diffV(Img,PlotRange)
-Img_trim = trim3D_vert(Img,5);
+mode = 'sim';
+if strcmp(mode,'experiment')
+    Img_trim = trim3D_vert(Img,5);
+elseif strcmp(mode,'sim')
+    Img_trim = trim3D_hori(Img,5);
+end
 [d1,d2,~] = size(Img_trim);
 Img_mosaic = make_mosaic(Img_trim,[4,4]);
-plot_mosaic(Img_mosaic,[30 35],PlotRange)
+plot_mosaic(Img_mosaic,[30 35],PlotRange,true,true,'')
 % Trying to add some text to the mosaic images
 % First try to find the correct locations to add texts
 voltage_array = 100:10:250;
@@ -411,12 +429,18 @@ function plot_nii
     end
 end
 function plot_delay(Img,PlotRange)
-Img_trim = trim3D_vert(Img,5);
+%Img_trim = trim3D_vert(Img,5);
+mode = 'sim';
+if strcmp(mode,'experiment')
+    Img_trim = trim3D_vert(Img,5);
+elseif strcmp(mode,'sim')
+    Img_trim = trim3D_hori(Img,5);
+end
 [d1,d2,~] = size(Img_trim);
 % add an extra empty image
 Img_trim_new = cat(3,Img_trim,zeros(d1,d2));
 Img_mosaic = make_mosaic(Img_trim_new,[3,4]);
-plot_mosaic(Img_mosaic,[28 38],PlotRange)
+plot_mosaic(Img_mosaic,[28 38],PlotRange,true,true,'')
 % Trying to add some text to the mosaic images
 % First try to find the correct locations to add texts
 delay_array = [-10:2:10 nan];
@@ -563,6 +587,11 @@ function plot_mosaic(Img,FigDim,varargin)
         PlotRange = varargin{1};
         imagesc(Img,PlotRange)
         bool_newfig = varargin{2};
+    elseif numel(varargin) == 3
+        PlotRange = varargin{1};
+        imagesc(Img,PlotRange)
+        bool_newfig = varargin{2};
+        bool_colorbar = varargin{3};
     elseif numel(varargin) == 4
         PlotRange = varargin{1};
         imagesc(Img,PlotRange)
@@ -570,9 +599,9 @@ function plot_mosaic(Img,FigDim,varargin)
         bool_colorbar = varargin{3};
         str_colorbar = varargin{4};
     else
-        error('Only 2, 3, 4 or 6 inputs are allowed.');
+        error('Only 2, 3, 4, 5 or 6 inputs are allowed.');
     end
-    if bool_newfig        
+    if (numel(varargin)>=3) && bool_newfig        
         set(gcf,'color','w','InvertHardcopy','off')
         set(gcf,'units','centimeters','position',[4 4 FigDim(1) FigDim(2)],...
             'paperunits','centimeters','paperposition',[4 4 FigDim(1) FigDim(2)])
@@ -580,9 +609,10 @@ function plot_mosaic(Img,FigDim,varargin)
     axis image        
     axis off
     colormap hot
-    if bool_colorbar
+    if (numel(varargin)>=3) && bool_colorbar
         colorbar
         CLB2 = colorbar('FontSize',20);%nudge(CLB2,[0.05 -0.048 0.01 0.095]);
         set(get(CLB2,'Title'),'String',str_colorbar)
+        %nudge(CLB2,[0 0 0.1 0]);
     end
 end
