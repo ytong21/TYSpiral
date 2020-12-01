@@ -608,8 +608,8 @@ end
         end
         axis off; colormap gray;
     end
+    %%    
     function h = tyPlotTrajectory( T, Gradient, OpenFigure )
-
     if nargin < 3
         OpenFigure = 1;
     end
@@ -693,31 +693,37 @@ end
     
   	colormap(hot)
     t = colorbar;
-    nudge(t,[0.08 0 0 0]);
-    set(get(t,'ylabel'),'String', 'k-space Velocity $\|\textbf{G}\|_{2}$','Interpreter','latex','Fontsize',14,'Fontweight','bold');
+    nudge(t,[0.04 0 0 0]);
+    set(get(t,'ylabel'),'String', 'k-space Velocity $\|\textbf{G}\|_{2}$',...
+        'Interpreter','latex','Fontsize',18,'Fontweight','bold');
     %set(gca,'Color',[0.8 0.8 0.8])
-
+    xlabel('k_x (m^{-1})','Position',[-10 -50 -25]);ylabel('k_y (m^{-1})','Position',[-50 0 -25]);
+    zlabel('k_z (m^{-1})','Rotation',0,'Position',[-45 40 28]);
     if all( T.Sam.kz == 0 )
         set(gca,'View',[0 90])
 	else
         set(gca,'View',[-46 22])
     end
-    
+    zticks([-20 0 20]);
+    %zlim([-30 30])
     %set figure size
     if OpenFigure
         set(gcf,'OuterPosition',[235   222   763   742])
         set(gcf,'Position',     [243   230   747   650])
         
         set(gca,'OuterPosition',[-0.1240   -0.0836    1.2193    1.1373])
-        set(gca,'Position',     [ 0.0345    0.0415    0.8370    0.9269])
+        set(gca,'Position',     [ 0.0345+0.05    0.0415+0.015    0.8370-0.05    0.9269])
+        
+        
         
         set(gcf,'color','w','InvertHardcopy','off')
-        set(gca,'FontSize',12)
-        movegui(gcf,'center')
+        set(gca,'FontSize',18)
+        %movegui(gcf,'center')
 
         %axis equal 
     end
     end
+    %%
  function writeIniFile_ty(rfIn,gradIn)
 % From WTC writeIniFile.m
 % Write an arbitrary pulse to the ini format that is expected by the
