@@ -360,6 +360,27 @@ end
    G0 = zeros( NV,1 );
    T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
        end
+       
+       function T_init = makeTraj_shells(kxy_extent,kz_extent)
+   options.Gmax         = 22.0;     % [mT/m]
+   options.Smax         = 200.0;   	% YT[T/m/s]
+   options.Vmax         = 150.0;    % [V]
+   options.phi_bounds   = [   10.0000   10.0000   10.0000    2.0000    1.0000   -8.0000    0.5000 ; ...
+                                     100.0000  100.0000  100.0000    7.5000   10.0000   +8.0000    2.0000 ].';
+   options.GBF          =       struct(  'OnlyContinuousRanges',0,...
+                                                        'GradSmooth_On',1,...
+                                                        'GradSmooth_Lambda',1e-3,...
+                                                        'GradSmooth_MaxDistFac',2,...
+                                                        'verbosity',0,...
+                                                        'UseMex',0,...
+                                                        'SolverID','MinConF_SPG' );
+   
+   options.phi_init = [40  40  20   7    6    1    1 ].';
+   [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
+   NV = sum( R_mat(:,end) );
+   G0 = zeros( NV,1 );
+   T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
+       end
     %%
     function run_comparison_plot(circle,result,maskedMaps)
         figure(222)
