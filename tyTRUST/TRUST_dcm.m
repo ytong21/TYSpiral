@@ -66,7 +66,7 @@ for iDx = 1:size(Mid_DiffV,3)
     fraction(iDx) = find_fraction(Mid_DiffV(:,:,iDx), seg_new);
 end
 %%
-sim_conta_volume(FullSlab180V,seg_new,69.7)
+sim_conta_volume(FullSlab180V,seg_new)
 %%
     run_comparison_plot(CircleMaskFiltered,OutCell{1}.finalMag,maskedMaps);
 
@@ -78,8 +78,93 @@ sim_conta_volume(FullSlab180V,seg_new,69.7)
     plot_diffV(abs(sim_DiffV(:,:,5,:)),[0 1])
     %%
     plot_delay(abs(delay_img(:,:,5,:)),[0 1])
+    
+    %%
+    plot_sat_profile(Spoils_180)
+    %%
+    [Sz_0, s_perc] = calc_Sz_t0(100.1,1229,80,1370)
 %%
-
+plot_T1_field
+    %%
+    function plot_T1_field
+    T1_3T = 1649;   %ms
+    T1_7T = 2087;   %ms
+    % this is for Hct level of 42%
+    Hct = 0.42;  Y = 0.6;
+    T2_3T = calc_T2_from_Hct_3T(Hct,Y);                     %From Lu 2012 10.1002/mrm.22970
+    T2_7T = 1/(dot([14.6, -31.2, 223.5],[1,1-Y,(1-Y)^2]));  %From Krishnamurthy 2014 10.1002/mrm.24868
+    T2_decay = @(t,T2) exp(-t/T2);
+    eTE20_Mz = [T2_decay(20e-3,T2_3T), T2_decay(20e-3,T2_7T)];
+    time_array = 0:10:1500;
+    T1_decay = @(t,T1,Mz) 1-(1-Mz)*exp(-t/T1);
+    tag_curve = [T1_decay(time_array,T1_3T,-1);T1_decay(time_array,T1_7T,-1);
+        T1_decay(time_array,T1_3T,-eTE20_Mz(1));T1_decay(time_array,T1_7T,-eTE20_Mz(2))];
+    control_curve = [ones(2,numel(time_array));...
+        T1_decay(time_array,T1_3T,eTE20_Mz(1));T1_decay(time_array,T1_7T,eTE20_Mz(2))];
+    color_cell = {[0 0.4470 0.7410],[0.8500 0.3250 0.0980]};
+    title_cell = {'eTE = 0','eTE = 20 ms'};
+    for iDx = 1:2
+        subplot(2,1,iDx)
+            for jDx = 1:2
+            plot(time_array,tag_curve((iDx-1)*2+jDx,:),'-d','MarkerSize',15,'LineWidth',4,...
+                'MarkerIndices',121,'Color',color_cell{jDx})
+            hold on
+            plot(time_array,control_curve((iDx-1)*2+jDx,:),'--d','MarkerSize',15,'LineWidth',4,...
+                'MarkerIndices',121,'Color',color_cell{jDx})    
+            end
+            % 121 is for a TI = 1200ms
+            xlabel('Time (ms)');ylabel('M_z');
+            ylim([-1 1]);title(title_cell{iDx})
+            set(gca,'FontSize',20)
+    end
+    plot_dim = [30 30];
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',[4 4 plot_dim(1) plot_dim(2)],...
+        'paperunits','centimeters','paperposition',[4 4 plot_dim(1) plot_dim(2)])
+    legend('3 T label','3 T control','7 T label','7 T control','Location','southeast')
+    
+    end
+    %%
+    function T2 = calc_T2_from_Hct_3T(Hct,Y)
+    % calibration data from 10.1002/mrm.22970
+    % This is for tau_cmpg = 5ms
+    a_array = [-4.4 39.1 -33.5];
+    b_array = [1.5 4.7];
+    c_array = 167.8;
+    A = dot(a_array,[1 Hct Hct^2]);
+    B = dot(b_array,[Hct Hct^2]);
+    C = c_array*Hct*(1-Hct);
+    R2 = dot([A B C],[1 1-Y (1-Y)^2]);
+    T2 = 1/R2;
+    end
+function plot_sat_profile(Img3D)
+Img = Img3D(:,:,4:6);   %middle slice
+% Y = 21;
+%line_index = 15:37;
+line_profile = squeeze(Img(:,25,:));
+specification = {'-','--','-.'};
+figure
+hold on
+for iDx = 1:size(line_profile,2)
+    plot(line_profile(:,iDx),specification{iDx},'LineWidth',4);
+    width(iDx) = fwhm(1:size(line_profile,1), line_profile(:,iDx));
+end
+xlim([1 size(line_profile,1)])
+xtick off;
+ylabel('Signal intensity (a.u.)')
+%ytick off
+plot_dim = [30 20];
+set(gcf,'color','w','InvertHardcopy','off')
+set(gcf,'units','centimeters','position',[4 4 plot_dim(1) plot_dim(2)],...
+    'paperunits','centimeters','paperposition',[4 4 plot_dim(1) plot_dim(2)])
+set(gca,'FontSize',30)
+legend('1 sat','2 sat','3 sat')
+disp(width)
+end
+function [Sz_0,percentage] = calc_Sz_t0(Sz_t,S0,t,T1)
+    Sz_0 = (Sz_t-S0*(1-exp(-t/T1)))/exp(-t/T1);
+    percentage = Sz_0/S0;
+end
     function run_comparison_plot(circle,result,maskedMaps)
     % taken from main for phantom
         %figure(222)
@@ -126,11 +211,11 @@ sim_conta_volume(FullSlab180V,seg_new,69.7)
                 'FontSize',18)
         end
     end
-function sim_conta_volume(Img,Seg,S_exp)
+function sim_conta_volume(Img,Seg)
 seg_3D = repmat(Seg,[1 1 size(Img,3)]);
 ROI = Img(seg_3D==3);
 Back = Img(seg_3D==2);
-mean_back = mean(Back-S_exp);
+mean_back = calc_Sz_t0(mean(Back),1229,80,1370);
 mean_ROI = mean(ROI);
 ratio_array = 0:40;
 contamination = (mean_back*(1-ratio_array/100))./...
@@ -322,11 +407,20 @@ function out = find_mean_back(FullSlab180V,FullSlab223V,seg_new)
 %     voxels_180 = [];
 %     voxels_223 = [];
     mask = repmat(seg_new,[1,1,10]);
-    voxels_180 = FullSlab180V(mask==2);
-    voxels_223 = FullSlab223V(mask==2);
-    out = [voxels_180,voxels_223];
+    back_180 = FullSlab180V(mask==2);
+    back_223 = FullSlab223V(mask==2);
+    ROI_180 = FullSlab180V(mask==3);
+    ROI_223 = FullSlab223V(mask==3); 
+    [Sz_0_180, ~] = calc_Sz_t0(mean(back_180),1229,80,1370);
+    [Sz_0_223, ~] = calc_Sz_t0(mean(back_223),1229,80,1370);
+    contam(1) = Sz_0_180*numel(back_180)/(Sz_0_180*numel(back_180)+...
+        sum(ROI_180));
+    contam(2) = Sz_0_223*numel(back_223)/(Sz_0_223*numel(back_223)+...
+        sum(ROI_223));
+    out = {[back_180,back_223],[ROI_180,ROI_223],contam};
 end
 function chart_diffV(Img_Cell,seg)
+
     diffV_metric = zeros(numel(Img_Cell),size(Img_Cell{1},3));
     % dim1: (low, mid, high) dim2: voltage dim3: mean/std
     for iDx = 1:numel(Img_Cell)
@@ -352,16 +446,26 @@ function chart_diffV(Img_Cell,seg)
     set(gca,'FontSize',22)
 end
 function chart_spoil(Spoils_180, Spoils_223,seg)
+    plot_mode = 'ROI';
     mean_back_180 = zeros(1,size(Spoils_180,3));
     mean_back_223 = zeros(1,size(Spoils_223,3));
+    mean_ROI_180 = zeros(1,size(Spoils_180,3));
+    mean_ROI_223 = zeros(1,size(Spoils_223,3));
     for iDx = 1:numel(mean_back_180)
-        [~,mean_std_temp,~]=find_fraction(Spoils_180(:,:,iDx),seg);
-        mean_back_180(iDx) = mean_std_temp(1);
-        [~,mean_std_temp,~]=find_fraction(Spoils_223(:,:,iDx),seg);
-        mean_back_223(iDx) = mean_std_temp(1);
+        [~,back_temp,ROI_temp]=find_fraction(Spoils_180(:,:,iDx),seg);
+        mean_back_180(iDx) = back_temp(1);
+        mean_ROI_180(iDx) = ROI_temp(1);
+        [~,back_temp,ROI_temp]=find_fraction(Spoils_223(:,:,iDx),seg);
+        mean_back_223(iDx) = back_temp(1);
+        mean_ROI_223(iDx) = ROI_temp(1);
     end
-    m_180 = reshape(mean_back_180,[3,3]);
-    m_223 = reshape(mean_back_223,[3,3]);
+    if     strcmp(plot_mode, 'ROI')
+        m_180 = reshape(mean_ROI_180,[3,3]);
+        m_223 = reshape(mean_ROI_223,[3,3]);
+    elseif strcmp(plot_mode, 'backgroud')
+        m_180 = reshape(mean_back_180,[3,3]);
+        m_223 = reshape(mean_back_223,[3,3]);
+    end
     x_data = 1:3;       % 1,2,3 spoils
     color_cell = {[0.8500 0.3250 0.0980],[0.9290 0.6940 0.1250],[0.4660 0.6740 0.1880]};
     hold on
@@ -371,8 +475,9 @@ function chart_spoil(Spoils_180, Spoils_223,seg)
     for iDx = 1:3
         plot(x_data,m_223(:,iDx),'--d','LineWidth',3,'MarkerSize',17,'Color',color_cell{iDx})
     end
-    xlim([0.8 3.2]);xticks(1:3);yticks(100:100:500)
-    xlabel('No. of sat pulses');ylabel('Mean backgroud pixel intensity (a.u.)')
+    xlim([0.8 3.2]);xticks(1:3);%yticks(100:100:500)
+    xlabel('No. of sat pulses');
+    ylabel(sprintf('Mean %s pixel intensity (a.u.)',plot_mode))
     legend('180V low','180V mid','180V high','223V low','223V mid','223V high')
     set(gcf,'color','w','InvertHardcopy','off')
     set(gcf,'units','centimeters','position',[4 4 30 30],...
