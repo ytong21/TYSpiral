@@ -24,7 +24,7 @@ CO_MLEV_single = [2*CO_unit_hard_pulse*complex_plus_y;...     % 180y
     CO_gap_180_180;2*CO_unit_hard_pulse*complex_minus_y;...   % 180-y
     CO_gap_180_180;2*CO_unit_hard_pulse*complex_minus_y;...  % 180-y
     CO_gap_180_180];
-    eTE = 40;
+    eTE = 20;
 MLEV_train = make_MLEV_train(eTE,CO_MLEV_single,CO_unit_hard_pulse,CO_gap_90_180,CO_gap_180_180);
 % CO_RF_array = [CO_unit_hard_pulse*complex_plus_x;...       % 90x
 %     CO_gap_90_180;2*CO_unit_hard_pulse*complex_plus_y;...     % 180y
@@ -37,7 +37,7 @@ make_seq_diag(CO_RF_array,21)
 %%
 make_seq_diag(MLEV_train,42)
 %% Bloch Sim
-B1_variation = 0.2:0.05:1.8;
+
 %%
 %CO_mag = BlochSimT2Prep(MLEV_train,B1_variation*CO_RF_amp);
 %%
@@ -72,12 +72,18 @@ Lu_RF_array = [0;Lu_unit_hard_pulse_90*complex_plus_x;...   %90x
 Lu_RF_amp = (pi/2)/(2*pi*Lu_RF_duration_90);
 
 %%
-make_seq_diag(Lu_RF_array,22)
+make_seq_diag(Lu_RF_array,21)
 %%
+tic
+hard_T2_encoding = MLEV_train;
+composite_T2_encoding = zeros(size(hard_T2_encoding));
+composite_T2_encoding(1:numel(Lu_RF_array)) = Lu_RF_array;
 %Lu_mag = BlochSimT2Prep(Lu_RF_array,B1_variation*Lu_RF_amp);
 OffRess = -300:25:300;
-%Lu_mag = BlochSimT2Prep_OffRes(Lu_RF_array,B1_variation*Lu_RF_amp,OffRess);
-CO_mag = BlochSimT2Prep_OffRes(CO_RF_array,B1_variation*Lu_RF_amp,OffRess);
+B1_variation = 0.2:0.05:1.8;
+composite_mag = BlochSimT2Prep_OffRes(composite_T2_encoding,B1_variation*Lu_RF_amp,OffRess);
+hard_mag = BlochSimT2Prep_OffRes(hard_T2_encoding,B1_variation*Lu_RF_amp,OffRess);
+toc
 %%
 Comp180_mag = BlochSimT2Prep(Lu_composite_180_minus,B1_variation*Lu_RF_amp);
 %%
@@ -99,6 +105,10 @@ Mag_Scatter(Lu_mag)
 PlotMzSingle(CO_mag,B1_variation,OffRess)
 %%
 PlotMz(CO_mag,Lu_mag,B1_variation,OffRess,b0,b1CP)
+%%
+make_seq_subplot(MLEV_train,Lu_RF_array)
+%%
+PlotMzSimp(hard_mag,composite_mag,B1_variation,OffRess)
  %%   
 function vec = create_ones(duration, time_step)
     vec = ones(round(duration/time_step),1);
@@ -106,6 +116,33 @@ end
 function vec = create_zeros(duration, time_step)
     vec = zeros(round(duration/time_step),1);
 end 
+%%
+function make_seq_subplot(Encoding1, Encoding2)
+    figure
+    fig_dim = [4 4 30 25];
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',fig_dim,'paperunits','centimeters','paperposition',fig_dim)
+    function plot_RF_array(RF)
+        time_vec = (1:numel(RF))/100;
+        hold on
+        area(time_vec,abs(real(RF)).*(real(RF)>0));
+        area(time_vec,abs(real(RF)).*(real(RF)<0));
+        area(time_vec,abs(imag(RF)).*(imag(RF)>0));
+        area(time_vec,abs(imag(RF)).*(imag(RF)<0));
+        xlim([0 21])
+        xlabel('Time (ms)');
+        ylabel('RF Amplitude (a.u.)')
+        legend('+x','-x','+y','-y','Location','eastoutside');
+        set(gca,'FontSize',24,'linewidth',1.5,'ytick',[]);
+    end
+
+        subplot(2,1,1)
+        plot_RF_array(Encoding1)
+        
+        subplot(2,1,2)
+        plot_RF_array(Encoding2)
+
+end
 %%
 function make_seq_diag(CO_RF_array,time_limit)
     figure
@@ -149,9 +186,9 @@ function make_seq_diag(CO_RF_array,time_limit)
     %yticks(0:45:90);
     xlabel('Time (ms)');
     ylabel('RF Amplitude (a.u.)')
-    legend('+x','-x','+y','-y');
+    legend('+x','-x','+y','-y','Location','eastoutside');
     %ldg.Title.FontSize = 20;
-    set(gca,'FontSize',20,'linewidth',1.5,'ytick',[]);
+    set(gca,'FontSize',24,'linewidth',1.5,'ytick',[]);
 end
 %%
 function OutStruct = BlochSimT2Prep(RF_array,RF_amp_array_Hz)
@@ -191,7 +228,7 @@ sens = complex(RF_amp_array_Hz);
 %df = zeros(size(sens));         % Assume there is no off-resonannce at the moment
 dp = zeros(numel(sens),3);         % Assume isocentre
 t1 = 2587e-3;
-t2 = 150e-3;
+t2 = 30e-3;                     % a rough value at 7T for Y=70% with Hct of 42%
 mx = zeros(numel(OffResArray),numel(sens));
 my = mx;    mz = mx;
 for iDx = 1:numel(OffResArray)
@@ -304,6 +341,45 @@ function PlotMz(CO_mag,Lu_mag,B1_variation,OffRess,b0,b1CP)
     title('Composite pulse')
     rectangle('Position',[b1_pct(1) b0_pct(1) b1_pct(2)-b1_pct(1) b0_pct(2)-b0_pct(1)],...
         'LineWidth',3,'EdgeColor','b');
+end
+
+function PlotMzSimp(hard_mag,comp_mag,B1_variation,OffRess)
+    figure
+    plot_dim = [4 4 42 18];
+    set(gcf,'color','w','InvertHardcopy','off')
+    set(gcf,'units','centimeters','position',plot_dim,...
+        'paperunits','centimeters','paperposition',plot_dim)
+    t2 = 30e-3;                     % a rough value at 7T for Y=70% with Hct of 42%
+    eTE = 20e-3;
+    level = exp(-eTE/t2);
+    %level = 0.875173319042947;      %ideal Mz after T2 prep
+    %plot_Range = [0.4 max([CO_mag.mz(:);Lu_mag.mz(:)])];
+    plot_Range = [0 1];
+    %OffRess_flipped = flip(OffRess);
+    hard = (hard_mag.mz);
+    comp = (comp_mag.mz);
+    x = [B1_variation(1)  B1_variation(end)];
+    y = [OffRess(1) OffRess(end)];
+    function plot_encoding(data,title_str)
+        imagesc(x,y,data,plot_Range)
+        title(title_str)
+        colormap hot
+        xlabel('B_{1} inhomogeneity')
+        ylabel('Off-resonance (Hz)')
+        c = colorbar;
+        set(gca,'FontSize',22)
+        c.Label.String = 'M_z';
+        c.Label.Rotation = 0;
+        h_axes = axes('position', c.Position, ...
+            'ylim', c.Limits, 'color', 'none', 'visible','off');
+        line(h_axes.XLim, level*[1 1], 'color', 'k', ...
+            'parent', h_axes, 'LineWidth', 3);
+        
+    end
+    subplot(1,2,1)
+    plot_encoding(hard,'Hard pulse')
+    subplot(1,2,2)
+    plot_encoding(comp,'Composite pulse')
 end
 function Mag_Scatter(mag)
 figure
