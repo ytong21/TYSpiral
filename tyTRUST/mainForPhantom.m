@@ -252,6 +252,32 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     sim_DiffV = sim_diffV(rfIn,gradIn,maskedMaps);
     %%
     delay_img = sim_delay(rfIn,gradIn,maskedMaps);
+    
+    %%
+    OutCell_CP = calc_CP(AFull,tikhonovArray,param,maskedMaps);
+    %%
+        run_comparison_plot(CircleMaskFiltered,OutCell_CP{1}.finalMag,maskedMaps);
+    %% Calculating the pulse for CP mode
+    
+   function OutCell = calc_CP(AFull,tikhonovArray,param,maskedMaps)
+        [d1, d2] = size(AFull);
+        AFull_reshaped = reshape(AFull,d1,d2/8,8);
+        % voxels/RF time point/channels
+        AFull_CP = sum(AFull_reshaped,3);
+        ALambda_cell = cell(size(tikhonovArray));
+            for iDx = 1:numel(tikhonovArray)
+                ALambda_cell{iDx} = ((AFull_CP'*AFull_CP + 8*tikhonovArray(iDx)*...
+                    eye(size(AFull_CP,2)))\sparse(eye(d2/8)))*AFull_CP';
+            end
+        OutCell = cell(size(tikhonovArray));
+        for iDx = 1:numel(tikhonovArray)
+            param_CP = param;
+            param_CP.CGtikhonov = 8*tikhonovArray(iDx);
+            OutCell{iDx} = run_variable_exchange(AFull_CP,param_CP,maskedMaps,ALambda_cell{iDx});
+            %OutCell{3} = run_variable_exchange(AFull,param,maskedMaps,ALambda_cell{3});
+        end            
+    end
+    
         %% Bloch sim for diff voltages
   function  sim_img = sim_diffV(rfIn,gradIn,maskedMaps)
     Vol_Array = 100:10:250;
@@ -305,7 +331,7 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     df = maskedMaps.b0MapMasked;       
     dp = maskedMaps.posVox;         % Assume isocentre
     t1 = inf;
-    t2 = 150e-3;
+    %t2 = 150e-3;                   % this value used for thesis
     [mx,my,mz] =  blochSim_mex_relax_multithread(RF,sens,g,dt,t1,t2,df,dp,mode);
     OutStruct = struct('mx',mx,'my',my,'mz',mz);
 end
@@ -361,7 +387,7 @@ end
    T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
        end
        
-       function T_init = makeTraj_shells(kxy_extent,kz_extent)
+       function T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev)
    options.Gmax         = 22.0;     % [mT/m]
    options.Smax         = 200.0;   	% YT[T/m/s]
    options.Vmax         = 150.0;    % [V]
@@ -375,7 +401,7 @@ end
                                                         'UseMex',0,...
                                                         'SolverID','MinConF_SPG' );
    
-   options.phi_init = [40  40  20   7    6    1    1 ].';
+   options.phi_init = [kxy_extent  kxy_extent  kz_extent   No_Shell    No_Rev    1    1 ].';
    [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
    NV = sum( R_mat(:,end) );
    G0 = zeros( NV,1 );
