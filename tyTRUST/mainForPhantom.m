@@ -263,6 +263,10 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     tic
     cell_test_1 = k_space_test(maskedMaps,5:5:60,5:5:20);
     toc
+    %%
+    plot_RMSE_traj(cell_test_1,5:5:60,5:5:20)
+    %%
+    T_init_test = makeTraj_shells(30,5,7,6);
     %% Varying the excitation k-space trajetory
     function out_cell = k_space_test(maskedMaps,kxy_array,kz_array)
     No_Shell = 7;   No_Rev = 6;
@@ -291,6 +295,30 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
                 ALambda = ((AFull'*AFull + param.CGtikhonov*eye(size(AFull,2)))...
                     \sparse(eye(size(AFull,2))))*AFull';
                 out = run_variable_exchange(AFull,param,maskedMaps,ALambda);
+    end
+    
+    function plot_RMSE_traj(OutCell,x_array,y_array)
+        [d1,d2] = size(OutCell);
+        RMSE = zeros(d1,d2);
+        plot_dim = [4 4 32 14];
+        x = [x_array(1),x_array(end)];
+        y = [y_array(1),y_array(end)];
+        for iDx = 1:d1
+            for jDx = 1:d2
+                RMSE(iDx,jDx) = OutCell{iDx,jDx}.finalRMSE;
+            end
+        end
+        imagesc(x,y,100*RMSE',[0 12])
+        xlabel('k_x/k_y extent (m^{-1})')
+        ylabel('k_z extent (m^{-1})')
+        title('RMSE (%)')
+        axis image
+        colormap hot
+        colorbar
+        set(gcf,'color','w','InvertHardcopy','off')
+        set(gcf,'units','centimeters','position',plot_dim,...
+        'paperunits','centimeters','paperposition',plot_dim)
+        set(gca,'FontSize',22)
     end
     %% Calculating the pulse for CP mode
    function OutCell = calc_CP(AFull,tikhonovArray,param,maskedMaps)
