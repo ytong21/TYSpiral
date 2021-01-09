@@ -257,8 +257,42 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     OutCell_CP = calc_CP(AFull,tikhonovArray,param,maskedMaps);
     %%
         run_comparison_plot(CircleMaskFiltered,OutCell_CP{1}.finalMag,maskedMaps);
-    %% Calculating the pulse for CP mode
+        
+    %%
+    % kxy 5-60 kz 5-20 with in increments of 5
+    tic
+    cell_test_1 = k_space_test(maskedMaps,5:5:60,5:5:20);
+    toc
+    %% Varying the excitation k-space trajetory
+    function out_cell = k_space_test(maskedMaps,kxy_array,kz_array)
+    No_Shell = 7;   No_Rev = 6;
+    out_cell = cell(numel(kxy_array),numel(kz_array));
+        for iDx = 1:numel(kxy_array)
+            for jDx = 1:numel(kz_array)
+                kxy_extent = kxy_array(iDx);
+                kz_extent = kz_array(jDx);
+                T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev);
+                out_cell{iDx,jDx} = calc_pulse_from_T_init(T_init,maskedMaps);
+            end
+        end
+    end
     
+    function out = calc_pulse_from_T_init(T_init,maskedMaps)
+        param.targetFlipAngle = 90;
+        param.numCh = 8;
+        param.tol = 1e-5;
+        param.CGtikhonov = power(10,-6);       % having a single value for now
+        
+                Gradient = 425.77*downsample([T_init.Sam.Gx; T_init.Sam.Gy; T_init.Sam.Gz]',10);
+                Time_Vec = downsample(T_init.Sam.t,10);
+                AFullMag = genAMatFull(1E-5*ones(numel(Time_Vec),1),ones(numel(Time_Vec),1),Gradient,maskedMaps.b1SensMaskedHz,...
+                            maskedMaps.b0MapMasked,maskedMaps.posVox);
+                AFull = asin(AFullMag);
+                ALambda = ((AFull'*AFull + param.CGtikhonov*eye(size(AFull,2)))...
+                    \sparse(eye(size(AFull,2))))*AFull';
+                out = run_variable_exchange(AFull,param,maskedMaps,ALambda);
+    end
+    %% Calculating the pulse for CP mode
    function OutCell = calc_CP(AFull,tikhonovArray,param,maskedMaps)
         [d1, d2] = size(AFull);
         AFull_reshaped = reshape(AFull,d1,d2/8,8);
