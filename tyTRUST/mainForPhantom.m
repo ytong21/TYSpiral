@@ -264,6 +264,8 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     cell_test_1 = k_space_test(maskedMaps,5:5:60,5:5:20);
     toc
     %%
+    duration_test1 = find_dur_for_k_extent(5:5:60,5:5:20);
+    %%
     plot_RMSE_traj(cell_test_1,5:5:60,5:5:20)
     %%
     T_init_test = makeTraj_shells(30,5,7,6);
@@ -296,7 +298,20 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
                     \sparse(eye(size(AFull,2))))*AFull';
                 out = run_variable_exchange(AFull,param,maskedMaps,ALambda);
     end
-    
+    function duration_matrix = find_dur_for_k_extent(kxy_array,kz_array)
+        duration_matrix = zeros(numel(kxy_array),numel(kz_array));
+        No_Shell = 7;   No_Rev = 6;
+        for iDx = 1:numel(kxy_array)
+            for jDx = 1:numel(kz_array)
+                duration_matrix(iDx,jDx) = find_pulse_duration(...
+                    kxy_array(iDx),kz_array(jDx),No_Shell,No_Rev);
+            end
+        end
+    end
+    function duration = find_pulse_duration(kxy_extent,kz_extent,No_Shell,No_Rev)
+        T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev);
+        duration = T_init.t(end);
+    end
     function plot_RMSE_traj(OutCell,x_array,y_array)
         [d1,d2] = size(OutCell);
         RMSE = zeros(d1,d2);
