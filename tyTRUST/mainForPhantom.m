@@ -261,16 +261,30 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     %%
     % kxy 5-60 kz 5-20 with in increments of 5
     tic
-    cell_test_1 = k_space_test(maskedMaps,5:5:60,5:5:20);
+    cell_test_1 = k_space_test_extent(maskedMaps,5:5:60,5:5:20);
     toc
     %%
-    duration_test1 = find_dur_for_k_extent(5:5:60,5:5:20);
+    duration_test1 = find_dur_for_k(5:5:60,5:5:20,7,6,0);
     %%
-    plot_RMSE_traj(cell_test_1,5:5:60,5:5:20)
+    plot_RMSE_traj(cell_test_1,5:5:60,5:5:20,0)
     %%
-    T_init_test = makeTraj_shells(30,5,7,6);
+    tic
+    cell_test_2 = k_space_test_shape(maskedMaps,30,5,3:3:9,3:3:9);
+    toc
+    
+    %%
+    tic
+    cell_test_3 = k_space_test_shape(maskedMaps,30,5,3:5,3:5);
+    toc
+    %%
+    plot_RMSE_traj(cell_test_3,3:5,3:5,1)
+    
+    %%
+    duration_test2 = find_dur_for_k(30,5,3:3:9,3:3:9,1);
+    %%
+    duration_test3 = find_dur_for_k(30,5,3:5,3:5,1);
     %% Varying the excitation k-space trajetory
-    function out_cell = k_space_test(maskedMaps,kxy_array,kz_array)
+    function out_cell = k_space_test_extent(maskedMaps,kxy_array,kz_array)
     No_Shell = 7;   No_Rev = 6;
     out_cell = cell(numel(kxy_array),numel(kz_array));
         for iDx = 1:numel(kxy_array)
@@ -282,6 +296,17 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
             end
         end
     end
+    function out_cell = k_space_test_shape(maskedMaps,kxy,kz,shell_array,rev_array)
+    out_cell = cell(numel(shell_array),numel(rev_array));
+        for iDx = 1:numel(shell_array)
+            for jDx = 1:numel(rev_array)
+                shell = shell_array(iDx);
+                rev = rev_array(jDx);
+                T_init = makeTraj_shells(kxy,kz,shell,rev);
+                out_cell{iDx,jDx} = calc_pulse_from_T_init(T_init,maskedMaps);
+            end
+        end
+    end    
     
     function out = calc_pulse_from_T_init(T_init,maskedMaps)
         param.targetFlipAngle = 90;
@@ -298,13 +323,23 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
                     \sparse(eye(size(AFull,2))))*AFull';
                 out = run_variable_exchange(AFull,param,maskedMaps,ALambda);
     end
-    function duration_matrix = find_dur_for_k_extent(kxy_array,kz_array)
-        duration_matrix = zeros(numel(kxy_array),numel(kz_array));
-        No_Shell = 7;   No_Rev = 6;
-        for iDx = 1:numel(kxy_array)
-            for jDx = 1:numel(kz_array)
+    function duration_matrix = find_dur_for_k(kxy_array,kz_array,...
+        shell_array,rev_array,mode)
+        if mode ==0
+            duration_matrix = zeros(numel(kxy_array),numel(kz_array));
+            for iDx = 1:numel(kxy_array)
+                for jDx = 1:numel(kz_array)
                 duration_matrix(iDx,jDx) = find_pulse_duration(...
-                    kxy_array(iDx),kz_array(jDx),No_Shell,No_Rev);
+                    kxy_array(iDx),kz_array(jDx),shell_array,shell_array);
+                end
+            end
+        elseif mode == 1
+            duration_matrix = zeros(numel(shell_array),numel(rev_array));
+            for iDx = 1:numel(shell_array)
+                for jDx = 1:numel(rev_array)
+                duration_matrix(iDx,jDx) = find_pulse_duration(...
+                    kxy_array,kz_array,shell_array(iDx),shell_array(jDx));
+                end
             end
         end
     end
@@ -312,10 +347,13 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
         T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev);
         duration = T_init.t(end);
     end
-    function plot_RMSE_traj(OutCell,x_array,y_array)
+    function plot_RMSE_traj(OutCell,x_array,y_array,mode)
+        % 2 modes (0 & 1):
+        % mode 0: kxy & kz extent
+        % mode 1: shells and revs
         [d1,d2] = size(OutCell);
         RMSE = zeros(d1,d2);
-        plot_dim = [4 4 32 14];
+        plot_dim = [4 4 20 20];
         x = [x_array(1),x_array(end)];
         y = [y_array(1),y_array(end)];
         for iDx = 1:d1
@@ -323,9 +361,17 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
                 RMSE(iDx,jDx) = OutCell{iDx,jDx}.finalRMSE;
             end
         end
-        imagesc(x,y,100*RMSE',[0 12])
-        xlabel('k_x/k_y extent (m^{-1})')
-        ylabel('k_z extent (m^{-1})')
+        if mode == 0
+            imagesc(x,y,100*RMSE',[0 12])
+            xlabel('k_x/k_y extent (m^{-1})')
+            ylabel('k_z extent (m^{-1})')
+        elseif mode == 1
+            imagesc(x,y,100*RMSE',[2 4])
+            xlabel('Revolutions')
+            ylabel('Shells')
+            xtick(x_array)
+            ytick(y_array)
+        end
         title('RMSE (%)')
         axis image
         colormap hot
@@ -464,7 +510,17 @@ end
    T_init = PerformOptimization3D( kx_vec, ky_vec, kz_vec, R_mat, options.Gmax, options.Smax, G0, options.GBF );
        end
        
-       function T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev)
+       function T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev,varargin)
+       if numel(varargin) == 0
+           phi_6 = 1;
+           phi_7 = 1;
+       elseif numel(varargin) == 2
+           phi_6 = varargin{1};
+           phi_7 = varargin{2};
+       else
+           error('The number of inputs is not recognised.')
+       end
+           
    options.Gmax         = 22.0;     % [mT/m]
    options.Smax         = 200.0;   	% YT[T/m/s]
    options.Vmax         = 150.0;    % [V]
@@ -478,7 +534,7 @@ end
                                                         'UseMex',0,...
                                                         'SolverID','MinConF_SPG' );
    
-   options.phi_init = [kxy_extent  kxy_extent  kz_extent   No_Shell    No_Rev    1    1 ].';
+   options.phi_init = [kxy_extent  kxy_extent  kz_extent   No_Shell    No_Rev    phi_6    phi_7 ].';
    [ kx_vec, ky_vec, kz_vec, R_mat, NoRFIndices ] = TrajectoryControlPoints_Shells(options.phi_init);
    NV = sum( R_mat(:,end) );
    G0 = zeros( NV,1 );
