@@ -277,12 +277,27 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
     cell_test_3 = k_space_test_shape(maskedMaps,30,5,3:5,3:5);
     toc
     %%
-    plot_RMSE_traj(cell_test_3,3:5,3:5,1)
+    plot_RMSE_traj(cell_test_6,1:0.25:2,0.5:0.25:1,2)
     
     %%
     duration_test2 = find_dur_for_k(30,5,3:3:9,3:3:9,1);
-    %%
+    %
     duration_test3 = find_dur_for_k(30,5,3:5,3:5,1);
+    %
+    duration_test4 = find_dur_for_k(30,5,5,5,2,0.8:0.2:1.2,0.8:0.2:1.2);
+    
+    %%
+    cell_test_4 = k_space_test_uniformity(maskedMaps,30,5,5,5,...
+                            0.8:0.2:1.2,0.8:0.2:1.2);
+    %%
+    cell_test_5 = k_space_test_uniformity(maskedMaps,30,5,5,5,...
+                            0.5:0.25:1,1:0.25:2); 
+    %%
+    cell_test_6 = k_space_test_uniformity(maskedMaps,30,5,5,5,...
+                            1:0.25:2,0.5:0.25:1); 
+    %%  saving RMSE tests
+    save('/Users/ytong/Documents/MATLAB/tong-acptx/tySpiral/tyTRUST/RMSE_test.mat',...
+            'cell_test*','duration_test*');
     %% Varying the excitation k-space trajetory
     function out_cell = k_space_test_extent(maskedMaps,kxy_array,kz_array)
     No_Shell = 7;   No_Rev = 6;
@@ -307,7 +322,18 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
             end
         end
     end    
-    
+    function out_cell = k_space_test_uniformity(maskedMaps,kxy,kz,shell,rev,...
+                            phi_6_array,phi_7_array)
+    out_cell = cell(numel(phi_6_array),numel(phi_7_array));
+        for iDx = 1:numel(phi_6_array)
+            for jDx = 1:numel(phi_7_array)
+                phi_6 = phi_6_array(iDx);
+                phi_7 = phi_7_array(jDx);
+                T_init = makeTraj_shells(kxy,kz,shell,rev,phi_6,phi_7);
+                out_cell{iDx,jDx} = calc_pulse_from_T_init(T_init,maskedMaps);
+            end
+        end
+    end
     function out = calc_pulse_from_T_init(T_init,maskedMaps)
         param.targetFlipAngle = 90;
         param.numCh = 8;
@@ -324,7 +350,7 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
                 out = run_variable_exchange(AFull,param,maskedMaps,ALambda);
     end
     function duration_matrix = find_dur_for_k(kxy_array,kz_array,...
-        shell_array,rev_array,mode)
+        shell_array,rev_array,mode,varargin)
         if mode ==0
             duration_matrix = zeros(numel(kxy_array),numel(kz_array));
             for iDx = 1:numel(kxy_array)
@@ -341,21 +367,36 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
                     kxy_array,kz_array,shell_array(iDx),shell_array(jDx));
                 end
             end
+        elseif mode == 2
+            duration_matrix = zeros(numel(varargin{1}),numel(varargin{2}));
+            for iDx = 1:numel(varargin{1})
+                for jDx = 1:numel(varargin{2})
+                duration_matrix(iDx,jDx) = find_pulse_duration(...
+                    kxy_array,kz_array,shell_array,shell_array,...
+                    varargin{1},varargin{2});
+                end
+            end            
         end
     end
-    function duration = find_pulse_duration(kxy_extent,kz_extent,No_Shell,No_Rev)
+    function duration = find_pulse_duration(kxy_extent,kz_extent,No_Shell,No_Rev,varargin)
+    if numel(varargin) == 0
         T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev);
+    elseif numel(varargin) == 2
+        T_init = makeTraj_shells(kxy_extent,kz_extent,No_Shell,No_Rev,...
+            varargin{1},varargin{2});
+    end
         duration = T_init.t(end);
     end
-    function plot_RMSE_traj(OutCell,x_array,y_array,mode)
+    function plot_RMSE_traj(OutCell,row_array,col_array,mode,varargin)
         % 2 modes (0 & 1):
         % mode 0: kxy & kz extent
         % mode 1: shells and revs
+        % mode 2: phi 6 and phi 7
         [d1,d2] = size(OutCell);
         RMSE = zeros(d1,d2);
         plot_dim = [4 4 20 20];
-        x = [x_array(1),x_array(end)];
-        y = [y_array(1),y_array(end)];
+        x = [row_array(1),row_array(end)];  
+        y = [col_array(1),col_array(end)];
         for iDx = 1:d1
             for jDx = 1:d2
                 RMSE(iDx,jDx) = OutCell{iDx,jDx}.finalRMSE;
@@ -369,13 +410,19 @@ writeIniFile_ty(bSmooth_by_chan,gradIn);
             imagesc(x,y,100*RMSE',[2 4])
             xlabel('Revolutions')
             ylabel('Shells')
-            xtick(x_array)
-            ytick(y_array)
+            xtick(row_array)
+            ytick(col_array)
+        elseif mode == 2
+            imagesc(y,x,100*RMSE,[3.1 3.3])
+            xlabel('\phi_7')
+            ylabel('\phi_6')
+            xtick(col_array)
+            ytick(row_array)
         end
+        xlabel(x_str);  ylabel(y_str)
         title('RMSE (%)')
         axis image
-        colormap hot
-        colorbar
+        colormap hot;   colorbar
         set(gcf,'color','w','InvertHardcopy','off')
         set(gcf,'units','centimeters','position',plot_dim,...
         'paperunits','centimeters','paperposition',plot_dim)
